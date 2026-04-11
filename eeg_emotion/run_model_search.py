@@ -73,6 +73,12 @@ def parse_args():
     parser.add_argument("--full-loso", action="store_true")
     parser.add_argument("--repeat-seeds", nargs="*", type=int, default=None)
     parser.add_argument("--preset", choices=["quick", "standard"], default="quick")
+    parser.add_argument(
+        "--include",
+        nargs="*",
+        default=None,
+        help="Optional candidate names to run, e.g. svm_rbf_C0.03_gscale svm_rbf_C0.1_gscale",
+    )
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--save-best-submission", action="store_true")
     parser.add_argument("--output", default=None)
@@ -290,7 +296,15 @@ def main():
     )
 
     results = []
-    for name, factory in candidate_factories(args.preset, cfg["training"]["random_seed"], args.feature_set):
+    candidates = candidate_factories(args.preset, cfg["training"]["random_seed"], args.feature_set)
+    if args.include:
+        include_names = set(args.include)
+        candidates = [(name, factory) for name, factory in candidates if name in include_names]
+        missing = sorted(include_names - {name for name, _ in candidates})
+        if missing:
+            raise ValueError(f"Unknown candidate(s) for preset={args.preset}: {missing}")
+
+    for name, factory in candidates:
         seed_scores = []
         logger.info("=" * 60)
         logger.info(f"Candidate: {name}")
