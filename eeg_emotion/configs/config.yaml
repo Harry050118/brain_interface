@@ -94,3 +94,11 @@ svm_grid:
 evaluation:
   repeat_seeds: [42, 7, 13, 21, 84]
   use_enhanced_features: true
+
+
+# --- Strict 5s/10s multiscale SVM ensemble ---
+multiscale_svm:
+  scales_sec: [5, 10]
+  feature_sets: ["enhanced", "riemannian"]
+  C: 0.1
+  gamma: "scale"
