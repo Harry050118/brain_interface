@@ -17,11 +17,12 @@ class SVMModel(BaseModel):
     """
 
     def __init__(self, kernel: str = "rbf", C: float = 1.0,
-                 gamma: str = "scale"):
+                 gamma: str = "scale", feature_set: str = "de"):
         super().__init__(name="SVM_DE")
         self.kernel = kernel
         self.C = C
         self.gamma = gamma
+        self.feature_set = feature_set
 
         self.scaler = StandardScaler()
         self.svm = SVC(
@@ -75,6 +76,7 @@ class SVMModel(BaseModel):
                 "model": self.svm,
                 "scaler": self.scaler,
                 "name": self.name,
+            "feature_set": self.feature_set,
             }, f)
         print(f"  Saved SVM to: {path}")
 
@@ -83,7 +85,7 @@ class SVMModel(BaseModel):
         """Load SVM model and scaler."""
         with open(path, "rb") as f:
             data = pickle.load(f)
-        model = cls()
+        model = cls(feature_set=data.get("feature_set", "de"))
         model.svm = data["model"]
         model.scaler = data["scaler"]
         model.is_fitted = True

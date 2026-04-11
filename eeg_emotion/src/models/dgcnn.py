@@ -1,133 +1,113 @@
-"""Dynamic Graph Convolutional Neural Network (DGCNN) for EEG emotion recognition.
+﻿"""Lightweight Dynamic Graph CNN for EEG emotion recognition.
 
-Based on: Song et al., "EEG Emotion Recognition Using Dynamical Graph Convolutional Neural Networks"
-IEEE Transactions on Affective Computing, 2020.
-
-Uses DE features as node inputs and learns dynamic adjacency matrices during training.
+The first version was intentionally close to a simple graph-attention layer, but
+it was too large for this small cross-subject dataset. This version uses residual
+connections, LayerNorm, graph-level pooling, and smaller default capacity.
 """
+
+from typing import Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Optional
 
 from base_model import BaseModel
 
 
 class DynamicGraphConv(nn.Module):
-    """Dynamic graph convolution layer.
+    """Attention-based dynamic graph convolution with normalization."""
 
-    Learns the adjacency matrix from node features and applies graph convolution.
-    A_ij = softmax(LeakyReLU(a * concat(h_i, h_j)))
-    """
-
-    def __init__(self, in_features: int, out_features: int, dropout: float = 0.5):
+    def __init__(self, in_features: int, out_features: int, dropout: float = 0.35):
         super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-
-        self.W = nn.Linear(in_features, out_features, bias=False)
-        self.a = nn.Parameter(torch.randn(2 * out_features))
+        self.proj = nn.Linear(in_features, out_features, bias=False)
+        self.attn = nn.Parameter(torch.empty(2 * out_features))
+        self.norm = nn.LayerNorm(out_features)
         self.dropout = nn.Dropout(dropout)
         self.leaky_relu = nn.LeakyReLU(0.2)
+        nn.init.xavier_uniform_(self.proj.weight)
+        nn.init.xavier_uniform_(self.attn.unsqueeze(0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass.
+        h = self.proj(x)
+        n_nodes = h.size(1)
 
-        Args:
-            x: node features, shape (batch, n_nodes, in_features)
+        h_i = h.unsqueeze(2).expand(-1, -1, n_nodes, -1)
+        h_j = h.unsqueeze(1).expand(-1, n_nodes, -1, -1)
+        e = torch.matmul(torch.cat([h_i, h_j], dim=-1), self.attn)
+        adjacency = F.softmax(self.leaky_relu(e), dim=-1)
 
-        Returns:
-            output: shape (batch, n_nodes, out_features)
-        """
-        batch, n_nodes, _ = x.shape
-
-        # Transform features
-        h = self.W(x)  # (batch, n_nodes, out_features)
-        h = self.dropout(h)
-
-        # Compute attention-based adjacency
-        # Repeat for pairwise concatenation
-        h_i = h.unsqueeze(2).expand(-1, -1, n_nodes, -1)  # (batch, n, n, d)
-        h_j = h.unsqueeze(1).expand(-1, n_nodes, -1, -1)  # (batch, n, n, d)
-        concat = torch.cat([h_i, h_j], dim=-1)  # (batch, n, n, 2d)
-
-        e = torch.matmul(concat, self.a)  # (batch, n, n)
-        e = self.leaky_relu(e)
-        A = F.softmax(e, dim=-1)  # row-normalized adjacency
-
-        # Graph convolution: A @ h
-        out = torch.matmul(A, h)  # (batch, n_nodes, out_features)
-
-        return out
+        out = torch.matmul(adjacency, h)
+        out = self.dropout(out)
+        return self.norm(out)
 
 
-class DGCNN(nn.Module):
-    """DGCNN model for EEG emotion recognition.
+class ResidualGraphBlock(nn.Module):
+    """Dynamic graph layer plus residual connection."""
 
-    Input: DE features per channel, reshaped as (n_nodes=n_channels, node_dim=n_bands)
-    """
-
-    def __init__(self, n_channels: int = 30, n_bands: int = 4,
-                 hidden_dim: int = 64, num_layers: int = 3,
-                 dropout: float = 0.5):
+    def __init__(self, hidden_dim: int, dropout: float):
         super().__init__()
-        self.n_channels = n_channels
-        self.n_bands = n_bands
-
-        # Initial projection
-        self.input_proj = nn.Linear(n_bands, hidden_dim)
-
-        # Dynamic graph convolution layers
-        self.gc_layers = nn.ModuleList([
-            DynamicGraphConv(hidden_dim, hidden_dim, dropout)
-            for _ in range(num_layers)
-        ])
-
-        # Classification head
-        self.fc = nn.Sequential(
-            nn.Linear(hidden_dim * n_channels, 128),
-            nn.ReLU(),
+        self.graph = DynamicGraphConv(hidden_dim, hidden_dim, dropout)
+        self.ffn = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim * 2),
+            nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(128, 2)
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.Dropout(dropout),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass.
+        x = x + self.graph(x)
+        x = x + self.ffn(x)
+        return x
 
-        Args:
-            x: DE features, shape (batch, n_channels, n_bands)
 
-        Returns:
-            logits: shape (batch, 2)
-        """
-        # Project node features
-        h = self.input_proj(x)  # (batch, n_channels, hidden_dim)
-        h = F.relu(h)
+class DGCNN(nn.Module):
+    """Small residual DGCNN over channel-wise band features."""
 
-        # Apply graph convolutions
-        for gc in self.gc_layers:
-            h = gc(h)
-            h = F.relu(h)
+    def __init__(self, n_channels: int = 30, n_bands: int = 4,
+                 hidden_dim: int = 32, num_layers: int = 2,
+                 dropout: float = 0.35):
+        super().__init__()
+        self.n_channels = n_channels
+        self.n_bands = n_bands
+        self.input_proj = nn.Sequential(
+            nn.Linear(n_bands, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.blocks = nn.ModuleList([
+            ResidualGraphBlock(hidden_dim, dropout) for _ in range(num_layers)
+        ])
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(hidden_dim * 2),
+            nn.Linear(hidden_dim * 2, 64),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 2),
+        )
 
-        # Flatten and classify
-        h = h.reshape(h.size(0), -1)  # (batch, n_channels * hidden_dim)
-        return self.fc(h)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.input_proj(x)
+        for block in self.blocks:
+            h = block(h)
+
+        mean_pool = h.mean(dim=1)
+        max_pool = h.max(dim=1).values
+        return self.classifier(torch.cat([mean_pool, max_pool], dim=-1))
 
 
 class DGCNNModel(BaseModel):
-    """DGCNN model wrapper with BaseModel interface.
-
-    Uses DE features reshaped as (n_channels, n_bands) per sample.
-    """
+    """DGCNN wrapper with BaseModel interface."""
 
     def __init__(self, n_channels: int = 30, n_bands: int = 4,
-                 hidden_dim: int = 64, num_layers: int = 3,
-                 dropout: float = 0.5, learning_rate: float = 0.001,
-                 epochs: int = 100, batch_size: int = 256,
-                 weight_decay: float = 1e-4):
+                 hidden_dim: int = 32, num_layers: int = 2,
+                 dropout: float = 0.35, learning_rate: float = 0.0005,
+                 epochs: int = 60, batch_size: int = 256,
+                 weight_decay: float = 1e-3):
         super().__init__(name="DGCNN")
         self.n_channels = n_channels
         self.n_bands = n_bands
@@ -145,11 +125,9 @@ class DGCNNModel(BaseModel):
         self.scaler_std = None
 
     def _reshape_features(self, X: np.ndarray) -> np.ndarray:
-        """Reshape flat DE features to (n_samples, n_channels, n_bands)."""
         return X.reshape(-1, self.n_channels, self.n_bands)
 
     def _normalize(self, X: np.ndarray, fit: bool = False) -> np.ndarray:
-        """Per-channel-per-band normalization."""
         if fit:
             self.scaler_mean = X.mean(axis=0)
             self.scaler_std = X.std(axis=0) + 1e-8
@@ -157,48 +135,35 @@ class DGCNNModel(BaseModel):
 
     def fit(self, X: np.ndarray, y: np.ndarray,
             X_test: Optional[np.ndarray] = None) -> None:
-        """Train DGCNN.
-
-        Args:
-            X: DE features, shape (n_samples, n_channels * n_bands)
-            y: labels, shape (n_samples,)
-            X_test: optional target domain data (unused for now, reserved for DA)
-        """
-        # Reshape and normalize
-        X_reshaped = self._reshape_features(X)
-        X_norm = self._normalize(X_reshaped, fit=True)
-
-        # Convert to tensors
+        X_norm = self._normalize(self._reshape_features(X), fit=True)
         X_tensor = torch.FloatTensor(X_norm)
         y_tensor = torch.LongTensor(y)
 
-        dataset = TensorDataset(X_tensor, y_tensor)
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        loader = DataLoader(
+            TensorDataset(X_tensor, y_tensor),
+            batch_size=self.batch_size,
+            shuffle=True,
+            drop_last=False,
+        )
 
-        # Model
         self.model = DGCNN(
             n_channels=self.n_channels,
             n_bands=self.n_bands,
             hidden_dim=self.hidden_dim,
             num_layers=self.num_layers,
-            dropout=self.dropout
+            dropout=self.dropout,
         ).to(self.device)
 
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=self.epochs
+            optimizer, T_max=max(1, self.epochs)
         )
         criterion = nn.CrossEntropyLoss()
 
-        # Training loop
         self.model.train()
-        for epoch in range(self.epochs):
-            total_loss = 0
-            correct = 0
-            total = 0
-
+        for _ in range(self.epochs):
             for batch_X, batch_y in loader:
                 batch_X = batch_X.to(self.device)
                 batch_y = batch_y.to(self.device)
@@ -208,41 +173,27 @@ class DGCNNModel(BaseModel):
 
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 optimizer.step()
-
-                total_loss += loss.item() * len(batch_y)
-                correct += (logits.argmax(dim=1) == batch_y).sum().item()
-                total += len(batch_y)
-
             scheduler.step()
 
         self.is_fitted = True
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict labels."""
-        X_reshaped = self._reshape_features(X)
-        X_norm = self._normalize(X_reshaped, fit=False)
+        X_norm = self._normalize(self._reshape_features(X), fit=False)
         X_tensor = torch.FloatTensor(X_norm).to(self.device)
-
         self.model.eval()
         with torch.no_grad():
-            logits = self.model(X_tensor)
-            return logits.argmax(dim=1).cpu().numpy()
+            return self.model(X_tensor).argmax(dim=1).cpu().numpy()
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """Predict class probabilities."""
-        X_reshaped = self._reshape_features(X)
-        X_norm = self._normalize(X_reshaped, fit=False)
+        X_norm = self._normalize(self._reshape_features(X), fit=False)
         X_tensor = torch.FloatTensor(X_norm).to(self.device)
-
         self.model.eval()
         with torch.no_grad():
-            logits = self.model(X_tensor)
-            probs = F.softmax(logits, dim=1)
-            return probs.cpu().numpy()
+            return F.softmax(self.model(X_tensor), dim=1).cpu().numpy()
 
     def save(self, path: str) -> None:
-        """Save DGCNN model weights and scaler stats."""
         import os
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save({
@@ -254,13 +205,16 @@ class DGCNNModel(BaseModel):
             "hidden_dim": self.hidden_dim,
             "num_layers": self.num_layers,
             "dropout": self.dropout,
+            "learning_rate": self.lr,
+            "epochs": self.epochs,
+            "batch_size": self.batch_size,
+            "weight_decay": self.weight_decay,
             "name": self.name,
         }, path)
         print(f"  Saved DGCNN to: {path}")
 
     @classmethod
     def load(cls, path: str) -> "DGCNNModel":
-        """Load DGCNN model weights and scaler stats."""
         checkpoint = torch.load(path, map_location="cpu")
         model = cls(
             n_channels=checkpoint["n_channels"],
@@ -268,6 +222,10 @@ class DGCNNModel(BaseModel):
             hidden_dim=checkpoint["hidden_dim"],
             num_layers=checkpoint["num_layers"],
             dropout=checkpoint["dropout"],
+            learning_rate=checkpoint.get("learning_rate", 0.0005),
+            epochs=checkpoint.get("epochs", 60),
+            batch_size=checkpoint.get("batch_size", 256),
+            weight_decay=checkpoint.get("weight_decay", 1e-3),
         )
         model.scaler_mean = checkpoint["scaler_mean"]
         model.scaler_std = checkpoint["scaler_std"]
@@ -276,7 +234,7 @@ class DGCNNModel(BaseModel):
             n_bands=model.n_bands,
             hidden_dim=model.hidden_dim,
             num_layers=model.num_layers,
-            dropout=model.dropout
+            dropout=model.dropout,
         ).to(model.device)
         model.model.load_state_dict(checkpoint["model_state"])
         model.model.eval()

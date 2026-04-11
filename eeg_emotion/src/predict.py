@@ -11,7 +11,7 @@ import numpy as np
 import openpyxl
 
 from data_loader import load_test_data
-from features import extract_de_batch, DEFAULT_BANDS
+from features import extract_de_batch, extract_feature_batch, DEFAULT_BANDS
 from models.base_model import BaseModel
 
 
@@ -47,7 +47,8 @@ def predict_single_model(
         if use_raw:
             X = trials
         else:
-            X = extract_de_batch(trials, bands)
+            feature_set = getattr(model, "feature_set", "de")
+            X = extract_feature_batch(trials, bands, feature_set=feature_set)
 
         preds = model.predict(X)  # (8,)
 
@@ -118,7 +119,8 @@ def predict_ensemble(
             if model_use_raw:
                 X = trials
             else:
-                X = extract_de_batch(trials, bands)
+                feature_set = getattr(model, "feature_set", "de")
+                X = extract_feature_batch(trials, bands, feature_set=feature_set)
             probas = model.predict_proba(X)
             all_probas.append((model, probas))
 
@@ -150,8 +152,14 @@ def ensemble_predict_from_probas(
     """
     if method == "weighted_vote" and weights:
         ensemble_proba = np.zeros_like(all_probas[0][1])
+        aliases = {
+            "SVM_DE": ["SVM_DE", "svm", "svm_de", "SVM"],
+            "DGCNN": ["DGCNN", "dgcnn"],
+            "EEG-Conformer": ["EEG-Conformer", "conformer", "EEGConformer"],
+        }
         for model, proba in all_probas:
-            w = weights.get(model.name, 1.0 / len(all_probas))
+            keys = aliases.get(model.name, [model.name])
+            w = next((weights[k] for k in keys if k in weights), 1.0 / len(all_probas))
             ensemble_proba += w * proba
         return ensemble_proba.argmax(axis=1)
     else:

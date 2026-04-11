@@ -138,3 +138,64 @@ def run_loso(
     log.info(f"{'='*60}")
 
     return mean_acc, subject_accuracies, per_subject_results
+
+
+def select_eval_subjects(subjects_all, n_eval_subjects=None, seed=42):
+    """Select LOSO evaluation subjects with the same stratified rule as run_loso."""
+    unique_subjects = sorted(set(subjects_all))
+    if n_eval_subjects is None or n_eval_subjects >= len(unique_subjects):
+        return unique_subjects
+
+    rng = np.random.RandomState(seed)
+    dep_subjects = [s for s in unique_subjects if s.startswith("DEP")]
+    hc_subjects = [s for s in unique_subjects if s.startswith("HC")]
+
+    n_dep = max(1, int(n_eval_subjects * len(dep_subjects) / len(unique_subjects)))
+    n_hc = n_eval_subjects - n_dep
+    n_dep = min(n_dep, len(dep_subjects))
+    n_hc = min(n_hc, len(hc_subjects))
+
+    eval_dep = rng.choice(dep_subjects, n_dep, replace=False).tolist()
+    eval_hc = rng.choice(hc_subjects, n_hc, replace=False).tolist()
+    return sorted(eval_dep + eval_hc)
+
+
+def run_loso_features(
+    model_factory,
+    X_features: np.ndarray,
+    y_all: np.ndarray,
+    subjects_all,
+    n_eval_subjects: int = None,
+    seed: int = 42,
+    logger: logging.Logger = None,
+):
+    """Run LOSO over precomputed features.
+
+    This is useful for SVM grid search, because feature extraction is the slow
+    part and should not be repeated for every C/gamma pair.
+    """
+    log = logger or logging.getLogger("eeg_emotion")
+    subjects_array = np.asarray(subjects_all)
+    eval_subjects = select_eval_subjects(subjects_all, n_eval_subjects, seed)
+    subject_accuracies = []
+    per_subject_results = {}
+
+    for i, test_subject in enumerate(eval_subjects):
+        test_mask = subjects_array == test_subject
+        train_mask = ~test_mask
+
+        model = model_factory()
+        model.fit(X_features[train_mask], y_all[train_mask])
+        preds = model.predict(X_features[test_mask])
+        acc = (preds == y_all[test_mask]).mean()
+        subject_accuracies.append(acc)
+        per_subject_results[test_subject] = float(acc)
+
+        step = max(1, len(eval_subjects) // 10)
+        if (i + 1) % step == 0 or i == len(eval_subjects) - 1:
+            log.info(f"  [{i+1}/{len(eval_subjects)}] {test_subject}: acc={acc:.4f}")
+
+    mean_acc = float(np.mean(subject_accuracies))
+    std_acc = float(np.std(subject_accuracies))
+    log.info(f"LOSO Mean Accuracy: {mean_acc:.4f} ({mean_acc*100:.2f}%), std={std_acc:.4f}")
+    return mean_acc, subject_accuracies, per_subject_results
