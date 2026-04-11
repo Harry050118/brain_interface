@@ -76,7 +76,7 @@ class SVMModel(BaseModel):
                 "model": self.svm,
                 "scaler": self.scaler,
                 "name": self.name,
-                "feature_set": self.feature_set,
+            "feature_set": self.feature_set,
             }, f)
         print(f"  Saved SVM to: {path}")
 

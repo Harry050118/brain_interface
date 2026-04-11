@@ -168,74 +168,6 @@ def extract_enhanced_features(
     ]).astype(np.float32)
 
 
-
-def regularized_covariance(data: np.ndarray, shrinkage: float = 0.1) -> np.ndarray:
-    """Return a trace-normalized SPD channel covariance matrix.
-
-    Args:
-        data: filtered EEG, shape (n_channels, n_samples).
-        shrinkage: diagonal shrinkage strength in [0, 1].
-    """
-    x = data - data.mean(axis=1, keepdims=True)
-    cov = np.cov(x)
-    cov = np.nan_to_num(cov, nan=0.0, posinf=0.0, neginf=0.0)
-
-    n_channels = cov.shape[0]
-    trace = float(np.trace(cov))
-    if trace <= 1e-12:
-        trace = 1e-12
-    cov = cov / trace
-
-    diagonal_target = np.eye(n_channels, dtype=np.float64) / n_channels
-    cov = (1.0 - shrinkage) * cov + shrinkage * diagonal_target
-    cov = 0.5 * (cov + cov.T)
-    cov += 1e-6 * np.eye(n_channels, dtype=np.float64)
-    return cov.astype(np.float64)
-
-
-def log_euclidean_spd(cov: np.ndarray) -> np.ndarray:
-    """Map an SPD matrix to the tangent space with the matrix logarithm."""
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    eigvals = np.clip(eigvals, 1e-8, None)
-    log_cov = (eigvecs * np.log(eigvals)) @ eigvecs.T
-    return 0.5 * (log_cov + log_cov.T)
-
-
-def vectorize_symmetric(matrix: np.ndarray) -> np.ndarray:
-    """Vectorize the upper triangle; scale off-diagonal terms by sqrt(2)."""
-    idx = np.triu_indices_from(matrix)
-    vec = matrix[idx].astype(np.float32)
-    off_diag = idx[0] != idx[1]
-    vec[off_diag] *= np.sqrt(2.0)
-    return vec
-
-
-def extract_riemannian_features(
-    window: np.ndarray,
-    bands: Dict[str, Tuple[float, float]] = None,
-    sample_rate: float = 250.0,
-    shrinkage: float = 0.1,
-) -> np.ndarray:
-    """Extract log-Euclidean covariance features per frequency band.
-
-    For 30 EEG channels, each band contributes 30*31/2 = 465 features.
-    With the default four bands, the output dimension is 1860.
-    """
-    if bands is None:
-        bands = DEFAULT_BANDS
-
-    features = []
-    for low, high in bands.values():
-        filtered = np.vstack([
-            bandpass_filter(ch_signal, low, high, sample_rate)
-            for ch_signal in window
-        ])
-        cov = regularized_covariance(filtered, shrinkage=shrinkage)
-        log_cov = log_euclidean_spd(cov)
-        features.append(vectorize_symmetric(log_cov))
-    return np.concatenate(features).astype(np.float32)
-
-
 def extract_de_batch(windows: np.ndarray,
                      bands: Dict[str, Tuple[float, float]] = None,
                      sample_rate: float = 250.0) -> np.ndarray:
@@ -266,44 +198,13 @@ def extract_enhanced_batch(windows: np.ndarray,
     return features
 
 
-
-def extract_riemannian_batch(windows: np.ndarray,
-                             bands: Dict[str, Tuple[float, float]] = None,
-                             sample_rate: float = 250.0) -> np.ndarray:
-    """Extract log-Euclidean covariance features from a batch of windows."""
-    if bands is None:
-        bands = DEFAULT_BANDS
-
-    first = extract_riemannian_features(windows[0], bands, sample_rate)
-    features = np.empty((windows.shape[0], len(first)), dtype=np.float32)
-    features[0] = first
-
-    pbar = tqdm(range(1, windows.shape[0]), desc="Riemannian features", unit="win", leave=True, dynamic_ncols=True)
-    for i in pbar:
-        features[i] = extract_riemannian_features(windows[i], bands, sample_rate)
-    return features
-
-
-def extract_hybrid_batch(windows: np.ndarray,
-                         bands: Dict[str, Tuple[float, float]] = None,
-                         sample_rate: float = 250.0) -> np.ndarray:
-    """Concatenate enhanced spectral/statistical and Riemannian features."""
-    enhanced = extract_enhanced_batch(windows, bands, sample_rate)
-    riemannian = extract_riemannian_batch(windows, bands, sample_rate)
-    return np.concatenate([enhanced, riemannian], axis=1).astype(np.float32)
-
-
 def extract_feature_batch(windows: np.ndarray,
                           bands: Dict[str, Tuple[float, float]] = None,
                           sample_rate: float = 250.0,
                           feature_set: str = "de") -> np.ndarray:
-    """Dispatch feature extraction by name: de, enhanced, riemannian, or hybrid."""
+    """Dispatch feature extraction by name: 'de' or 'enhanced'."""
     if feature_set == "de":
         return extract_de_batch(windows, bands, sample_rate)
     if feature_set == "enhanced":
         return extract_enhanced_batch(windows, bands, sample_rate)
-    if feature_set == "riemannian":
-        return extract_riemannian_batch(windows, bands, sample_rate)
-    if feature_set == "hybrid":
-        return extract_hybrid_batch(windows, bands, sample_rate)
     raise ValueError(f"Unknown feature_set: {feature_set}")
