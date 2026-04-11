@@ -1,0 +1,16 @@
+2026-04-09 21:39:09,596 | INFO | Loading training data...
+2026-04-09 21:39:17,890 | INFO | Data: (4320, 30, 2500)
+2026-04-09 21:39:17,891 | INFO | Training EEG-Conformer on all data...
+2026-04-09 21:45:30,381 | INFO | Training done in 381s
+2026-04-09 21:45:30,381 | INFO | Generating submission...
+2026-04-09 21:45:30,864 | INFO |   P_test1: [0 0 0 0 0 0 0 0] (trials 1-8)
+2026-04-09 21:45:30,873 | INFO |   P_test10: [0 1 1 0 0 0 0 0] (trials 1-8)
+2026-04-09 21:45:30,883 | INFO |   P_test2: [1 1 0 1 1 0 0 0] (trials 1-8)
+2026-04-09 21:45:30,891 | INFO |   P_test3: [0 0 0 0 0 1 0 0] (trials 1-8)
+2026-04-09 21:45:30,901 | INFO |   P_test4: [0 0 1 1 0 1 0 1] (trials 1-8)
+2026-04-09 21:45:30,909 | INFO |   P_test5: [0 0 0 0 0 0 0 0] (trials 1-8)
+2026-04-09 21:45:30,919 | INFO |   P_test6: [1 1 1 0 1 0 0 0] (trials 1-8)
+2026-04-09 21:45:30,929 | INFO |   P_test7: [1 1 1 1 1 1 1 1] (trials 1-8)
+2026-04-09 21:45:30,938 | INFO |   P_test8: [1 1 0 0 1 1 1 1] (trials 1-8)
+2026-04-09 21:45:30,947 | INFO |   P_test9: [1 1 1 1 0 0 0 0] (trials 1-8)
+2026-04-09 21:45:30,978 | INFO | Complete! Total time: 381s

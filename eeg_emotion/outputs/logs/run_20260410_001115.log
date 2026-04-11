@@ -1,0 +1,12 @@
+2026-04-10 00:11:15,528 | INFO | Loading training data...
+2026-04-10 00:11:23,927 | INFO | Data: (4320, 30, 2500)
+2026-04-10 00:15:34,510 | INFO | DE features: (4320, 120)
+2026-04-10 00:15:34,511 | INFO | 
+--- Training SVM ---
+2026-04-10 00:15:41,778 | INFO | 
+--- Training DGCNN ---
+2026-04-10 00:16:07,480 | INFO | 
+--- Training EEG-Conformer ---
+2026-04-10 00:22:03,028 | INFO | 
+All models saved to outputs/models
+2026-04-10 00:22:03,028 | INFO | Total time: 651s

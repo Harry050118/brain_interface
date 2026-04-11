@@ -1,0 +1,83 @@
+# ============================================================
+# EEG Emotion Recognition - Configuration
+# ============================================================
+
+# --- 数据路径 ---
+data:
+  train_dir: "../训练集"
+  test_dir: "../公开测试集"
+  dep_subdir: "抑郁症患者"
+  hc_subdir: "正常人"
+
+# --- 信号处理 ---
+signal:
+  sample_rate: 250
+  n_channels: 30
+  window_size_sec: 10
+  train_stride_sec: 5
+  clip_sigma: 5
+
+# --- DE 特征 ---
+features:
+  use_de_features: true
+  bands:
+    theta: [4, 8]
+    alpha: [8, 13]
+    beta: [13, 30]
+    gamma: [31, 49]
+
+# --- 域适应 (CORAL) ---
+domain_adapt:
+  use_domain_adapt: false
+  method: "CORAL"
+
+# --- 训练 ---
+training:
+  loso: true
+  random_seed: 42
+  # LOSO 评估用的被试数（null=全部60个，10=抽样10个分层子集）
+  # 减少评估被试数可大幅缩短训练时间，但不影响最终全量训练
+  n_eval_subjects: 10
+
+# --- SVM Baseline ---
+svm:
+  kernel: "rbf"
+  C: 1.0
+  gamma: "scale"
+
+# --- DGCNN ---
+dgcnn:
+  hidden_dim: 64
+  num_layers: 3
+  dropout: 0.5
+  learning_rate: 0.001
+  epochs: 100
+  batch_size: 256
+  weight_decay: 0.0001
+
+# --- EEG Conformer ---
+conformer:
+  hidden_dim: 64
+  num_heads: 4
+  num_layers: 4
+  dropout: 0.3
+  learning_rate: 0.0005
+  epochs: 100
+  batch_size: 32
+  weight_decay: 0.0001
+  # Time downsampling: pool over this many time steps
+  time_pool: 10
+
+# --- 集成 ---
+ensemble:
+  method: "weighted_vote"
+  weights:
+    svm: 0.3
+    dgcnn: 0.35
+    conformer: 0.35
+
+# --- 输出 ---
+output:
+  model_dir: "outputs/models"
+  log_dir: "outputs/logs"
+  submission_path: "outputs/submission.xlsx"
