@@ -263,6 +263,9 @@ def main():
     for key in ["train_dir", "test_dir"]:
         if not os.path.isabs(cfg["data"][key]):
             cfg["data"][key] = os.path.abspath(os.path.join(base_dir, cfg["data"][key]))
+    for key in ["model_dir", "log_dir", "submission_path"]:
+        if not os.path.isabs(cfg["output"][key]):
+            cfg["output"][key] = os.path.abspath(os.path.join(base_dir, cfg["output"][key]))
 
     set_seed(cfg["training"]["random_seed"])
     logger, log_file = setup_logging(cfg["output"]["log_dir"])
