@@ -66,6 +66,32 @@ class SklearnFeatureModel:
         return proba
 
 
+class VotingFeatureModel:
+    """Soft-vote adapter for feature-based sklearn models."""
+
+    def __init__(self, name: str, members: Iterable[SklearnFeatureModel],
+                 weights: Iterable[float], feature_set: str):
+        self.name = name
+        self.members = list(members)
+        self.weights = np.asarray(list(weights), dtype=np.float32)
+        self.weights = self.weights / self.weights.sum()
+        self.feature_set = feature_set
+
+    def fit(self, X: np.ndarray, y: np.ndarray, X_test=None) -> None:
+        for member in self.members:
+            member.fit(X, y)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        probas = [member.predict_proba(X) for member in self.members]
+        out = np.zeros_like(probas[0], dtype=np.float64)
+        for weight, proba in zip(self.weights, probas):
+            out += float(weight) * proba
+        return out
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return self.predict_proba(X).argmax(axis=1)
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--feature-set", choices=["de", "enhanced"], default="enhanced")
@@ -142,6 +168,30 @@ def load_or_extract_features(cfg: Dict, feature_set: str, use_cache: bool, logge
 def candidate_factories(preset: str, seed: int, feature_set: str):
     candidates: List[Tuple[str, Callable[[], SklearnFeatureModel]]] = []
 
+    def rbf_svm_model(name: str, C: float, gamma):
+        return SklearnFeatureModel(
+            name,
+            make_pipeline(
+                StandardScaler(),
+                SVC(C=C, gamma=gamma, kernel="rbf", probability=True, random_state=seed),
+            ),
+            feature_set,
+        )
+
+    def extra_trees_model(name: str, n_estimators: int, max_features):
+        return SklearnFeatureModel(
+            name,
+            ExtraTreesClassifier(
+                n_estimators=n_estimators,
+                max_features=max_features,
+                min_samples_leaf=2,
+                class_weight=None,
+                n_jobs=-1,
+                random_state=seed,
+            ),
+            feature_set,
+        )
+
     svm_grid = [
         (0.1, "scale"),
         (0.3, "scale"),
@@ -165,14 +215,7 @@ def candidate_factories(preset: str, seed: int, feature_set: str):
         name = f"svm_rbf_C{C}_g{gamma}"
         candidates.append((
             name,
-            lambda C=C, gamma=gamma, name=name: SklearnFeatureModel(
-                name,
-                make_pipeline(
-                    StandardScaler(),
-                    SVC(C=C, gamma=gamma, kernel="rbf", probability=True, random_state=seed),
-                ),
-                feature_set,
-            ),
+            lambda C=C, gamma=gamma, name=name: rbf_svm_model(name, C, gamma),
         ))
 
     for C in ([0.1, 1.0, 3.0] if preset == "quick" else [0.03, 0.1, 0.3, 1.0, 3.0, 10.0]):
@@ -224,19 +267,51 @@ def candidate_factories(preset: str, seed: int, feature_set: str):
             name = f"extra_trees_{n_estimators}_mf{max_features}"
             candidates.append((
                 name,
-                lambda n_estimators=n_estimators, max_features=max_features, name=name: SklearnFeatureModel(
-                    name,
-                    ExtraTreesClassifier(
-                        n_estimators=n_estimators,
-                        max_features=max_features,
-                        min_samples_leaf=2,
-                        class_weight=None,
-                        n_jobs=-1,
-                        random_state=seed,
-                    ),
-                    feature_set,
+                lambda n_estimators=n_estimators, max_features=max_features, name=name: extra_trees_model(
+                    name, n_estimators, max_features
                 ),
             ))
+
+    if preset == "standard":
+        candidates.extend([
+            (
+                "vote_svm01_svm003",
+                lambda: VotingFeatureModel(
+                    "vote_svm01_svm003",
+                    [
+                        rbf_svm_model("svm_rbf_C0.1_gscale", 0.1, "scale"),
+                        rbf_svm_model("svm_rbf_C0.03_gscale", 0.03, "scale"),
+                    ],
+                    [0.5, 0.5],
+                    feature_set,
+                ),
+            ),
+            (
+                "vote_svm01_et600",
+                lambda: VotingFeatureModel(
+                    "vote_svm01_et600",
+                    [
+                        rbf_svm_model("svm_rbf_C0.1_gscale", 0.1, "scale"),
+                        extra_trees_model("extra_trees_600_mf0.5", 600, 0.5),
+                    ],
+                    [0.7, 0.3],
+                    feature_set,
+                ),
+            ),
+            (
+                "vote_svm01_svm003_et600",
+                lambda: VotingFeatureModel(
+                    "vote_svm01_svm003_et600",
+                    [
+                        rbf_svm_model("svm_rbf_C0.1_gscale", 0.1, "scale"),
+                        rbf_svm_model("svm_rbf_C0.03_gscale", 0.03, "scale"),
+                        extra_trees_model("extra_trees_600_mf0.5", 600, 0.5),
+                    ],
+                    [0.45, 0.35, 0.20],
+                    feature_set,
+                ),
+            ),
+        ])
 
     if preset == "standard":
         candidates.append((
