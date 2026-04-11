@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import scipy.io; print\\('scipy available'\\)\")",
+      "Bash(python3 -m pip install scipy -q)",
+      "Bash(python3:*)",
+      "WebSearch",
+      "WebFetch(domain:www.nature.com)",
+      "Bash(pip3 install:*)",
+      "Bash(pip3 --version)",
+      "Bash(python:*)",
+      "Bash(tasklist)",
+      "Bash(where conda:*)",
+      "Bash(where python:*)",
+      "Bash(conda env:*)",
+      "Bash(D:/Anaconda/envs/llm/python.exe -c \"import torch; print\\(f'PyTorch {torch.__version__}'\\); print\\(f'CUDA: {torch.cuda.is_available\\(\\)}'\\); print\\(f'GPU: {torch.cuda.get_device_name\\(0\\) if torch.cuda.is_available\\(\\) else \\\\\"N/A\\\\\"}'\\)\")",
+      "Bash(D:/Anaconda/python.exe -c \"import torch; print\\(f'PyTorch {torch.__version__}'\\); print\\(f'CUDA: {torch.cuda.is_available\\(\\)}'\\); print\\(f'GPU: {torch.cuda.get_device_name\\(0\\) if torch.cuda.is_available\\(\\) else \\\\\"N/A\\\\\"}'\\)\")",
+      "Bash(D:/Anaconda/envs/llm/python.exe:*)",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(tee /tmp/conformer_submit.log)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(tee /tmp/full_pipeline.log)",
+      "Bash(tee /tmp/save_models.log)",
+      "Bash(tee /tmp/plot_curves.log)",
+      "Bash(tee /tmp/coral_test.log)"
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Evaluation utilities for improving the EEG emotion pipeline.
 
 Examples:
@@ -15,6 +15,7 @@ import time
 
 import numpy as np
 import yaml
+from tqdm import tqdm
 
 _base = os.path.join(os.path.dirname(__file__), "src")
 sys.path.insert(0, _base)
@@ -70,37 +71,42 @@ def main():
         seeds = [cfg["training"]["random_seed"]]
 
     logger.info("Loading training data...")
+    t_load = time.time()
     X, y, subjects = load_train_data(
         train_dir=cfg["data"]["train_dir"],
         window_size=cfg["signal"]["sample_rate"] * cfg["signal"]["window_size_sec"],
         stride=cfg["signal"]["sample_rate"] * cfg["signal"]["train_stride_sec"],
         clip_sigma=cfg["signal"]["clip_sigma"],
     )
-    logger.info(f"Raw windows: {X.shape}")
+    logger.info(f"Raw windows: {X.shape} | load_time={(time.time() - t_load):.1f}s")
 
     if not args.svm_grid and not args.compare_dgcnn:
         args.svm_grid = True
 
     if args.svm_grid:
         logger.info(f"Extracting {args.feature_set} features for SVM...")
+        t_feat = time.time()
         X_features = extract_feature_batch(
             X,
             bands=cfg["features"]["bands"],
             sample_rate=cfg["signal"]["sample_rate"],
             feature_set=args.feature_set,
         )
-        logger.info(f"SVM features: {X_features.shape}")
+        logger.info(f"SVM features: {X_features.shape} | feat_time={(time.time() - t_feat):.1f}s")
 
         Cs = cfg.get("svm_grid", {}).get("C", [cfg["svm"].get("C", 1.0)])
         gammas = cfg.get("svm_grid", {}).get("gamma", [cfg["svm"].get("gamma", "scale")])
 
         best = None
+        total_params = len(Cs) * len(gammas)
+        pbar_grid = tqdm(total=total_params, desc="Grid search", unit="params")
         for C in Cs:
             for gamma in gammas:
                 seed_scores = []
                 logger.info("=" * 60)
                 logger.info(f"SVM grid: feature_set={args.feature_set}, C={C}, gamma={gamma}")
-                for seed in seeds:
+                pbar_seeds = tqdm(seeds, desc=f"C={C}, γ={gamma}", unit="seed", leave=False)
+                for seed in pbar_seeds:
                     logger.info(f"Seed {seed}, n_eval_subjects={n_eval_subjects or 'full'}")
                     mean_acc, _, _ = run_loso_features(
                         model_factory=lambda C=C, gamma=gamma: SVMModel(
@@ -117,12 +123,16 @@ def main():
                         logger=logger,
                     )
                     seed_scores.append(mean_acc)
+                    pbar_seeds.update(1)
 
+                pbar_grid.update(1)
                 avg = float(np.mean(seed_scores))
                 std = float(np.std(seed_scores))
                 logger.info(f"SVM grid result: C={C}, gamma={gamma}, mean={avg:.4f}, std={std:.4f}")
                 if best is None or avg > best[0]:
                     best = (avg, std, C, gamma, seed_scores)
+
+        pbar_grid.close()
 
         logger.info("=" * 60)
         logger.info(

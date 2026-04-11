@@ -1,4 +1,4 @@
-﻿"""Feature extraction for EEG emotion recognition.
+"""Feature extraction for EEG emotion recognition.
 
 The original baseline uses differential entropy (DE) per channel and band.
 This module also exposes an enhanced feature set for small-sample SVM baselines:
@@ -10,6 +10,7 @@ from typing import Dict, Iterable, Tuple
 import numpy as np
 from scipy.signal import butter, filtfilt, welch
 from scipy.signal.windows import dpss
+from tqdm import tqdm
 
 
 DEFAULT_BANDS = {
@@ -178,7 +179,8 @@ def extract_de_batch(windows: np.ndarray,
     n_windows = windows.shape[0]
     feature_dim = windows.shape[1] * len(bands)
     features = np.empty((n_windows, feature_dim), dtype=np.float32)
-    for i in range(n_windows):
+    pbar = tqdm(range(n_windows), desc="DE features", unit="win", leave=True, dynamic_ncols=True)
+    for i in pbar:
         features[i] = extract_de_features(windows[i], bands, sample_rate)
     return features
 
@@ -193,7 +195,9 @@ def extract_enhanced_batch(windows: np.ndarray,
     first = extract_enhanced_features(windows[0], bands, sample_rate)
     features = np.empty((windows.shape[0], len(first)), dtype=np.float32)
     features[0] = first
-    for i in range(1, windows.shape[0]):
+
+    pbar = tqdm(range(1, windows.shape[0]), desc="Enhanced features", unit="win", leave=True, dynamic_ncols=True)
+    for i in pbar:
         features[i] = extract_enhanced_features(windows[i], bands, sample_rate)
     return features
 
