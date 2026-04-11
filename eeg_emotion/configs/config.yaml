@@ -94,3 +94,15 @@ svm_grid:
 evaluation:
   repeat_seeds: [42, 7, 13, 21, 84]
   use_enhanced_features: true
+
+# --- Domain-adversarial DGCNN (experimental GPU route) ---
+dann_dgcnn:
+  hidden_dim: 32
+  num_layers: 2
+  dropout: 0.35
+  domain_hidden_dim: 64
+  learning_rate: 0.0005
+  epochs: 80
+  batch_size: 256
+  weight_decay: 0.001
+  domain_loss_weight: 0.2
