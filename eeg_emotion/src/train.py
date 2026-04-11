@@ -11,7 +11,6 @@ import logging
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
-from tqdm import tqdm
 
 from data_loader import load_train_data
 from features import extract_de_batch, DEFAULT_BANDS
@@ -181,8 +180,7 @@ def run_loso_features(
     subject_accuracies = []
     per_subject_results = {}
 
-    pbar = tqdm(enumerate(eval_subjects), total=len(eval_subjects), desc="LOSO subjects", unit="subj")
-    for i, test_subject in pbar:
+    for i, test_subject in enumerate(eval_subjects):
         test_mask = subjects_array == test_subject
         train_mask = ~test_mask
 
@@ -192,8 +190,6 @@ def run_loso_features(
         acc = (preds == y_all[test_mask]).mean()
         subject_accuracies.append(acc)
         per_subject_results[test_subject] = float(acc)
-        
-        pbar.set_postfix({"subject": test_subject, "acc": f"{acc:.4f}"})
 
         step = max(1, len(eval_subjects) // 10)
         if (i + 1) % step == 0 or i == len(eval_subjects) - 1:

@@ -6,13 +6,11 @@ sliding window extraction, and train/test data organization.
 
 import os
 import glob
-import time
 from typing import Dict, List, Tuple
 
 import h5py
 import numpy as np
 import scipy.io
-from tqdm import tqdm
 
 from utils import clip_outliers
 
@@ -102,45 +100,38 @@ def load_train_data(
     all_y = []
     all_subjects = []
 
-    file_jobs = []
+    # Load both HC and DEP subjects
     for subdir in ["正常人", "抑郁症患者"]:
         pattern = os.path.join(train_dir, subdir, "*timedata.mat")
-        for fpath in sorted(glob.glob(pattern)):
-            file_jobs.append((subdir, fpath))
+        files = sorted(glob.glob(pattern))
 
-    # Show progress while reading all subject files.
-    pbar = tqdm(file_jobs, desc="Loading train subjects", unit="file")
-    for _, fpath in pbar:
-        subject_name = os.path.basename(fpath).replace("timedata.mat", "")
-        pbar.set_postfix_str(subject_name)
-        data = read_train_subject(fpath)
+        for fpath in files:
+            subject_name = os.path.basename(fpath).replace("timedata.mat", "")
+            data = read_train_subject(fpath)
 
-        for emotion_key, label in [("EEG_data_neu", 0), ("EEG_data_pos", 1)]:
-            if emotion_key not in data:
-                continue
+            for emotion_key, label in [("EEG_data_neu", 0), ("EEG_data_pos", 1)]:
+                if emotion_key not in data:
+                    continue
 
-            eeg = data[emotion_key]  # (30, 50000)
-            eeg = clip_outliers(eeg, clip_sigma)
+                eeg = data[emotion_key]  # (30, 50000)
+                eeg = clip_outliers(eeg, clip_sigma)
 
-            # Each 50s segment = 12500 samples
-            segment_size = 12500
-            n_segments = eeg.shape[1] // segment_size
+                # Each 50s segment = 12500 samples
+                segment_size = 12500
+                n_segments = eeg.shape[1] // segment_size
 
-            for seg_idx in range(n_segments):
-                start = seg_idx * segment_size
-                end = start + segment_size
-                segment = eeg[:, start:end]
+                for seg_idx in range(n_segments):
+                    start = seg_idx * segment_size
+                    end = start + segment_size
+                    segment = eeg[:, start:end]
 
-                windows = sliding_window(segment, window_size, stride)
-                all_X.append(windows)
-                all_y.append(np.full(len(windows), label, dtype=np.int64))
-                all_subjects.extend([subject_name] * len(windows))
+                    windows = sliding_window(segment, window_size, stride)
+                    all_X.append(windows)
+                    all_y.append(np.full(len(windows), label, dtype=np.int64))
+                    all_subjects.extend([subject_name] * len(windows))
 
-    t_concat = time.time()
-    tqdm.write("Concatenating windows and labels...")
     X = np.concatenate(all_X, axis=0)
     y = np.concatenate(all_y, axis=0)
-    tqdm.write(f"Concatenate done: X={X.shape}, y={y.shape}, time={time.time() - t_concat:.1f}s")
 
     return X, y, all_subjects
 
