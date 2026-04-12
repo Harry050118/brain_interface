@@ -16,9 +16,10 @@ _base = os.path.join(os.path.dirname(__file__), "src")
 sys.path.insert(0, _base)
 sys.path.insert(0, os.path.join(_base, "models"))
 
-from data_loader import load_train_data
+from data_loader import load_test_data, load_train_data
 from models.eeg_token_transformer import EEGFactorizedTransformer, EEGTokenTransformer
-from raw_dataset import iter_unique_subjects, make_data_loader, make_loso_raw_datasets
+from predict import save_submission
+from raw_dataset import RawEEGDataset, compute_channel_stats, iter_unique_subjects, make_data_loader, make_loso_raw_datasets
 from train import select_eval_subjects
 from utils import set_seed, setup_logging
 
@@ -50,6 +51,10 @@ def parse_args():
     parser.add_argument("--noise-std", type=float, default=0.0)
     parser.add_argument("--channel-drop-prob", type=float, default=0.0)
     parser.add_argument("--max-time-shift", type=int, default=0)
+    parser.add_argument("--save-submission", action="store_true")
+    parser.add_argument("--output", default=None)
+    parser.add_argument("--model-output", default=None)
+    parser.add_argument("--final-epochs", type=int, default=None)
     return parser.parse_args()
 
 
@@ -196,6 +201,77 @@ def train_fold(args, cfg, X, y, subjects, test_subject, logger):
     return best_acc, best_epoch
 
 
+def train_final_model(args, cfg, X, y, logger):
+    """Train one model on all labeled windows for final test prediction."""
+    device = torch.device(args.device)
+    stats = compute_channel_stats(X)
+    train_ds = RawEEGDataset(
+        X,
+        y,
+        stats,
+        noise_std=args.noise_std,
+        channel_drop_prob=args.channel_drop_prob,
+        max_time_shift=args.max_time_shift,
+    )
+    train_loader = make_data_loader(
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+    )
+    model = build_model(args, cfg).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    scaler = torch.amp.GradScaler("cuda", enabled=args.amp and device.type == "cuda")
+    final_epochs = args.final_epochs or args.epochs
+
+    for epoch in range(1, final_epochs + 1):
+        model.train()
+        running_loss = 0.0
+        for x, y_batch in train_loader:
+            x = x.to(device, non_blocking=True)
+            y_batch = y_batch.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
+            with torch.amp.autocast("cuda", enabled=args.amp and device.type == "cuda"):
+                logits = model(x)
+                loss = criterion(logits, y_batch)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            running_loss += float(loss.item()) * int(y_batch.numel())
+        logger.info(f"    final epoch {epoch}/{final_epochs}: train_loss={running_loss / len(train_ds):.4f}")
+
+    return model, stats
+
+
+def predict_test_raw(model, stats, test_dir, args, logger):
+    """Predict all public test trials with a raw EEG model."""
+    device = torch.device(args.device)
+    model.eval()
+    test_data = load_test_data(test_dir)
+    predictions = []
+    with torch.no_grad():
+        for user_id, trials in test_data.items():
+            test_ds = RawEEGDataset(trials, np.zeros(len(trials), dtype=np.int64), stats)
+            test_loader = make_data_loader(
+                test_ds,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=args.num_workers,
+            )
+            subject_preds = []
+            for x, _ in test_loader:
+                x = x.to(device, non_blocking=True)
+                with torch.amp.autocast("cuda", enabled=args.amp and device.type == "cuda"):
+                    logits = model(x)
+                subject_preds.extend(logits.argmax(dim=1).detach().cpu().numpy().astype(int).tolist())
+
+            for trial_idx, pred in enumerate(subject_preds, start=1):
+                predictions.append((user_id, trial_idx, int(pred)))
+            logger.info(f"  {user_id}: {np.asarray(subject_preds, dtype=int)} (trials 1-8)")
+    return predictions
+
+
 def main():
     args = parse_args()
     start = time.time()
@@ -243,6 +319,31 @@ def main():
     mean_acc = float(np.mean(scores))
     std_acc = float(np.std(scores))
     logger.info(f"GPU baseline LOSO Mean Accuracy: {mean_acc:.4f} ({mean_acc*100:.2f}%), std={std_acc:.4f}")
+
+    if args.save_submission:
+        output_path = args.output or os.path.join(
+            cfg["output"]["model_dir"],
+            "..",
+            f"submission_{args.model}.xlsx",
+        )
+        model_output = args.model_output or os.path.join(cfg["output"]["model_dir"], f"{args.model}.pt")
+        logger.info("Training final raw EEG model on all labeled subjects...")
+        model, stats = train_final_model(args, cfg, X, y, logger)
+        predictions = predict_test_raw(model, stats, cfg["data"]["test_dir"], args, logger)
+        save_submission(predictions, output_path)
+        os.makedirs(os.path.dirname(model_output), exist_ok=True)
+        torch.save(
+            {
+                "model": model.state_dict(),
+                "model_name": args.model,
+                "channel_mean": stats.mean,
+                "channel_std": stats.std,
+                "args": vars(args),
+            },
+            model_output,
+        )
+        logger.info(f"Saved final raw EEG model: {model_output}")
+
     logger.info(f"GPU baseline complete in {(time.time() - start) / 60:.1f} min")
 
 
