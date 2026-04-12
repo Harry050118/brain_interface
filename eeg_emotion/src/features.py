@@ -11,6 +11,8 @@ import numpy as np
 from scipy.signal import butter, filtfilt, welch
 from scipy.signal.windows import dpss
 
+from channels import LEFT_RIGHT_CHANNEL_INDICES
+
 
 DEFAULT_BANDS = {
     "theta": (4, 8),
@@ -19,10 +21,7 @@ DEFAULT_BANDS = {
     "gamma": (31, 49),
 }
 
-# Without an official channel-name map in code, use adjacent channel pairs as a
-# conservative asymmetry proxy. If the exact montage is added later, replace
-# these with true left/right homologous pairs.
-DEFAULT_ASYMMETRY_PAIRS = tuple((i, i + 1) for i in range(0, 30, 2))
+DEFAULT_ASYMMETRY_PAIRS = LEFT_RIGHT_CHANNEL_INDICES
 
 
 def bandpass_filter(signal: np.ndarray, low: float, high: float,

@@ -118,6 +118,7 @@ def cache_key(cfg: Dict, feature_set: str) -> str:
         str(cfg["signal"]["window_size_sec"]),
         str(cfg["signal"]["train_stride_sec"]),
         str(cfg["signal"]["clip_sigma"]),
+        repr(cfg["signal"].get("channel_names", [])),
         repr(cfg["features"]["bands"]),
         cfg["data"]["train_dir"],
     ]

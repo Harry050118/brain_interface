@@ -16,6 +16,37 @@ signal:
   window_size_sec: 10
   train_stride_sec: 5
   clip_sigma: 5
+  channel_names:
+    - FP1
+    - FP2
+    - F7
+    - F3
+    - FZ
+    - F4
+    - F8
+    - FT7
+    - FC3
+    - FCZ
+    - FC4
+    - FT8
+    - T3
+    - C3
+    - CZ
+    - C4
+    - T4
+    - TP7
+    - CP3
+    - CPZ
+    - CP4
+    - TP8
+    - T5
+    - P3
+    - PZ
+    - P4
+    - T6
+    - O1
+    - OZ
+    - O2
 
 # --- DE 特征 ---
 features:
