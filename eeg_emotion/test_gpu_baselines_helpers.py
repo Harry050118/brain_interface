@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from run_gpu_baselines import average_probabilities, parse_ensemble_seeds
+from run_gpu_baselines import average_probabilities, make_criterion, parse_ensemble_seeds
 
 
 class GPUBaselineHelperTests(unittest.TestCase):
@@ -31,6 +31,11 @@ class GPUBaselineHelperTests(unittest.TestCase):
     def test_average_probabilities_rejects_empty_input(self):
         with self.assertRaises(ValueError):
             average_probabilities([])
+
+    def test_make_criterion_uses_requested_label_smoothing(self):
+        criterion = make_criterion(0.1)
+
+        self.assertAlmostEqual(criterion.label_smoothing, 0.1)
 
 
 if __name__ == "__main__":

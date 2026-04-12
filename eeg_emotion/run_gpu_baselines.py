@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-3)
+    parser.add_argument("--label-smoothing", type=float, default=0.0)
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=None)
@@ -81,6 +82,11 @@ def average_probabilities(probability_arrays):
     if not probability_arrays:
         raise ValueError("At least one probability array is required")
     return np.mean(np.stack(probability_arrays, axis=0), axis=0)
+
+
+def make_criterion(label_smoothing=0.0):
+    """Create the classification criterion used by GPU baselines."""
+    return nn.CrossEntropyLoss(label_smoothing=float(label_smoothing))
 
 
 def build_model(args, cfg):
@@ -153,12 +159,12 @@ def predict_proba_loader(model, loader, device, amp=False):
     return np.concatenate(probas, axis=0) if probas else np.empty((0, 2), dtype=np.float32)
 
 
-def evaluate(model, loader, device, amp=False):
+def evaluate(model, loader, device, amp=False, label_smoothing=0.0):
     model.eval()
     correct = 0
     total = 0
     losses = []
-    criterion = nn.CrossEntropyLoss()
+    criterion = make_criterion(label_smoothing)
     with torch.no_grad():
         for x, y in loader:
             x = x.to(device, non_blocking=True)
@@ -197,7 +203,7 @@ def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
     )
 
     model = build_model(args, cfg).to(device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = make_criterion(args.label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler("cuda", enabled=args.amp and device.type == "cuda")
 
@@ -221,7 +227,7 @@ def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
             scaler.update()
             running_loss += float(loss.item()) * int(y_batch.numel())
 
-        val_acc, val_loss = evaluate(model, val_loader, device, amp=args.amp)
+        val_acc, val_loss = evaluate(model, val_loader, device, amp=args.amp, label_smoothing=args.label_smoothing)
         train_loss = running_loss / max(1, len(train_ds))
         if val_acc > best_acc:
             best_acc = val_acc
@@ -295,7 +301,7 @@ def train_final_model(args, cfg, X, y, logger):
         num_workers=args.num_workers,
     )
     model = build_model(args, cfg).to(device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = make_criterion(args.label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler("cuda", enabled=args.amp and device.type == "cuda")
     final_epochs = args.final_epochs or args.epochs
