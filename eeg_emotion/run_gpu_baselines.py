@@ -42,6 +42,9 @@ def parse_args():
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--patch-size", type=int, default=125)
     parser.add_argument("--patch-stride", type=int, default=125)
+    parser.add_argument("--noise-std", type=float, default=0.0)
+    parser.add_argument("--channel-drop-prob", type=float, default=0.0)
+    parser.add_argument("--max-time-shift", type=int, default=0)
     return parser.parse_args()
 
 
@@ -79,7 +82,15 @@ def evaluate(model, loader, device):
 
 def train_fold(args, cfg, X, y, subjects, test_subject, logger):
     device = torch.device(args.device)
-    train_ds, val_ds, _ = make_loso_raw_datasets(X, y, subjects, test_subject)
+    train_ds, val_ds, _ = make_loso_raw_datasets(
+        X,
+        y,
+        subjects,
+        test_subject,
+        train_noise_std=args.noise_std,
+        train_channel_drop_prob=args.channel_drop_prob,
+        train_max_time_shift=args.max_time_shift,
+    )
     train_loader = make_data_loader(
         train_ds,
         batch_size=args.batch_size,
