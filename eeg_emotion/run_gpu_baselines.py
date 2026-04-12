@@ -410,7 +410,6 @@ def main():
                 )
                 best_epoch = f"ensemble({summary})"
             else:
-                set_seed(ensemble_seeds[0])
                 acc, best_epoch = train_fold(args, cfg, X, y, subjects, test_subject, logger)
             scores.append(acc)
             logger.info(f"  [{i}/{len(eval_subjects)}] {test_subject}: best_acc={acc:.4f} epoch={best_epoch}")
