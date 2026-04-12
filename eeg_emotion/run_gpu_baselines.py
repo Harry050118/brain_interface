@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import yaml
+from braindecode.models import BIOT, EEGConformer, Labram
 
 _base = os.path.join(os.path.dirname(__file__), "src")
 sys.path.insert(0, _base)
@@ -24,7 +25,11 @@ from utils import set_seed, setup_logging
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", choices=["token_transformer", "factorized_transformer"], default="token_transformer")
+    parser.add_argument(
+        "--model",
+        choices=["token_transformer", "factorized_transformer", "biot", "labram", "bd_conformer"],
+        default="token_transformer",
+    )
     parser.add_argument("--n-eval-subjects", type=int, default=None)
     parser.add_argument("--full-loso", action="store_true")
     parser.add_argument("--epochs", type=int, default=20)
@@ -66,6 +71,41 @@ def build_model(args, cfg):
             temporal_layers=max(1, args.num_layers // 2),
             channel_layers=args.num_layers,
             **common,
+        )
+    if args.model == "biot":
+        return BIOT(
+            n_chans=cfg["signal"]["n_channels"],
+            n_times=window_size,
+            sfreq=cfg["signal"]["sample_rate"],
+            n_outputs=2,
+            emb_size=args.embed_dim,
+            att_num_heads=args.num_heads,
+            n_layers=args.num_layers,
+            drop_prob=args.dropout,
+        )
+    if args.model == "labram":
+        return Labram(
+            n_chans=cfg["signal"]["n_channels"],
+            n_times=window_size,
+            sfreq=cfg["signal"]["sample_rate"],
+            n_outputs=2,
+            patch_size=args.patch_size,
+            emb_size=args.embed_dim,
+            att_num_heads=args.num_heads,
+            n_layers=args.num_layers,
+            drop_prob=args.dropout,
+            attn_drop_prob=args.dropout,
+        )
+    if args.model == "bd_conformer":
+        return EEGConformer(
+            n_chans=cfg["signal"]["n_channels"],
+            n_times=window_size,
+            sfreq=cfg["signal"]["sample_rate"],
+            n_outputs=2,
+            att_depth=args.num_layers,
+            att_heads=args.num_heads,
+            drop_prob=args.dropout,
+            att_drop_prob=args.dropout,
         )
     raise ValueError(f"Unknown model: {args.model}")
 
