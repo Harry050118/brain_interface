@@ -50,6 +50,7 @@ def parse_args():
     parser.add_argument("--num-heads", type=int, default=4)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--train-stride-sec", type=float, default=None)
     parser.add_argument("--patch-size", type=int, default=125)
     parser.add_argument("--patch-stride", type=int, default=125)
     parser.add_argument("--noise-std", type=float, default=0.0)
@@ -89,8 +90,15 @@ def make_criterion(label_smoothing=0.0):
     return nn.CrossEntropyLoss(label_smoothing=float(label_smoothing))
 
 
+def resolve_signal_samples(cfg, train_stride_sec=None):
+    """Resolve window and training stride durations to sample counts."""
+    sample_rate = cfg["signal"]["sample_rate"]
+    stride_sec = cfg["signal"]["train_stride_sec"] if train_stride_sec is None else train_stride_sec
+    return int(round(sample_rate * cfg["signal"]["window_size_sec"])), int(round(sample_rate * stride_sec))
+
+
 def build_model(args, cfg):
-    window_size = cfg["signal"]["sample_rate"] * cfg["signal"]["window_size_sec"]
+    window_size, _ = resolve_signal_samples(cfg, args.train_stride_sec)
     common = dict(
         n_channels=cfg["signal"]["n_channels"],
         window_size=window_size,
@@ -390,8 +398,8 @@ def main():
 
     X, y, subjects = load_train_data(
         train_dir=cfg["data"]["train_dir"],
-        window_size=cfg["signal"]["sample_rate"] * cfg["signal"]["window_size_sec"],
-        stride=cfg["signal"]["sample_rate"] * cfg["signal"]["train_stride_sec"],
+        window_size=resolve_signal_samples(cfg, args.train_stride_sec)[0],
+        stride=resolve_signal_samples(cfg, args.train_stride_sec)[1],
         clip_sigma=cfg["signal"]["clip_sigma"],
     )
     logger.info(f"Raw windows: {X.shape}, subjects={len(iter_unique_subjects(subjects))}")

@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from run_gpu_baselines import average_probabilities, make_criterion, parse_ensemble_seeds
+from run_gpu_baselines import average_probabilities, make_criterion, parse_ensemble_seeds, resolve_signal_samples
 
 
 class GPUBaselineHelperTests(unittest.TestCase):
@@ -36,6 +36,12 @@ class GPUBaselineHelperTests(unittest.TestCase):
         criterion = make_criterion(0.1)
 
         self.assertAlmostEqual(criterion.label_smoothing, 0.1)
+
+    def test_resolve_signal_samples_uses_overrides_when_present(self):
+        cfg = {"signal": {"sample_rate": 250, "window_size_sec": 10, "train_stride_sec": 5}}
+
+        self.assertEqual(resolve_signal_samples(cfg, train_stride_sec=None), (2500, 1250))
+        self.assertEqual(resolve_signal_samples(cfg, train_stride_sec=2.5), (2500, 625))
 
 
 if __name__ == "__main__":
