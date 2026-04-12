@@ -33,6 +33,7 @@ def parse_args():
     )
     parser.add_argument("--n-eval-subjects", type=int, default=None)
     parser.add_argument("--full-loso", action="store_true")
+    parser.add_argument("--skip-loso", action="store_true")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=3e-4)
@@ -303,22 +304,25 @@ def main():
     )
     logger.info(f"Raw windows: {X.shape}, subjects={len(iter_unique_subjects(subjects))}")
 
-    if args.full_loso:
-        eval_subjects = iter_unique_subjects(subjects)
+    if not args.skip_loso:
+        if args.full_loso:
+            eval_subjects = iter_unique_subjects(subjects)
+        else:
+            n_eval_subjects = args.n_eval_subjects or cfg["training"].get("n_eval_subjects")
+            eval_subjects = select_eval_subjects(subjects, n_eval_subjects, seed)
+        logger.info(f"Eval subjects: {list(eval_subjects)}")
+
+        scores = []
+        for i, test_subject in enumerate(eval_subjects, start=1):
+            acc, best_epoch = train_fold(args, cfg, X, y, subjects, test_subject, logger)
+            scores.append(acc)
+            logger.info(f"  [{i}/{len(eval_subjects)}] {test_subject}: best_acc={acc:.4f} epoch={best_epoch}")
+
+        mean_acc = float(np.mean(scores))
+        std_acc = float(np.std(scores))
+        logger.info(f"GPU baseline LOSO Mean Accuracy: {mean_acc:.4f} ({mean_acc*100:.2f}%), std={std_acc:.4f}")
     else:
-        n_eval_subjects = args.n_eval_subjects or cfg["training"].get("n_eval_subjects")
-        eval_subjects = select_eval_subjects(subjects, n_eval_subjects, seed)
-    logger.info(f"Eval subjects: {list(eval_subjects)}")
-
-    scores = []
-    for i, test_subject in enumerate(eval_subjects, start=1):
-        acc, best_epoch = train_fold(args, cfg, X, y, subjects, test_subject, logger)
-        scores.append(acc)
-        logger.info(f"  [{i}/{len(eval_subjects)}] {test_subject}: best_acc={acc:.4f} epoch={best_epoch}")
-
-    mean_acc = float(np.mean(scores))
-    std_acc = float(np.std(scores))
-    logger.info(f"GPU baseline LOSO Mean Accuracy: {mean_acc:.4f} ({mean_acc*100:.2f}%), std={std_acc:.4f}")
+        logger.info("Skipping LOSO evaluation by request.")
 
     if args.save_submission:
         output_path = args.output or os.path.join(
