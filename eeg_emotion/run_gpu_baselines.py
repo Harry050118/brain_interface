@@ -16,7 +16,7 @@ sys.path.insert(0, _base)
 sys.path.insert(0, os.path.join(_base, "models"))
 
 from data_loader import load_train_data
-from models.eeg_token_transformer import EEGTokenTransformer
+from models.eeg_token_transformer import EEGFactorizedTransformer, EEGTokenTransformer
 from raw_dataset import iter_unique_subjects, make_data_loader, make_loso_raw_datasets
 from train import select_eval_subjects
 from utils import set_seed, setup_logging
@@ -24,7 +24,7 @@ from utils import set_seed, setup_logging
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", choices=["token_transformer"], default="token_transformer")
+    parser.add_argument("--model", choices=["token_transformer", "factorized_transformer"], default="token_transformer")
     parser.add_argument("--n-eval-subjects", type=int, default=None)
     parser.add_argument("--full-loso", action="store_true")
     parser.add_argument("--epochs", type=int, default=20)
@@ -50,16 +50,24 @@ def parse_args():
 
 def build_model(args, cfg):
     window_size = cfg["signal"]["sample_rate"] * cfg["signal"]["window_size_sec"]
-    return EEGTokenTransformer(
+    common = dict(
         n_channels=cfg["signal"]["n_channels"],
         window_size=window_size,
         patch_size=args.patch_size,
         patch_stride=args.patch_stride,
         embed_dim=args.embed_dim,
         num_heads=args.num_heads,
-        num_layers=args.num_layers,
         dropout=args.dropout,
     )
+    if args.model == "token_transformer":
+        return EEGTokenTransformer(num_layers=args.num_layers, **common)
+    if args.model == "factorized_transformer":
+        return EEGFactorizedTransformer(
+            temporal_layers=max(1, args.num_layers // 2),
+            channel_layers=args.num_layers,
+            **common,
+        )
+    raise ValueError(f"Unknown model: {args.model}")
 
 
 def evaluate(model, loader, device):
