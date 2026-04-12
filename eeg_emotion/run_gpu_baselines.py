@@ -5,6 +5,7 @@ import argparse
 import os
 import sys
 import time
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -41,6 +42,7 @@ def parse_args():
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--ensemble-seeds", default=None, help="Comma-separated seeds for probability averaging.")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--embed-dim", type=int, default=48)
@@ -57,6 +59,28 @@ def parse_args():
     parser.add_argument("--model-output", default=None)
     parser.add_argument("--final-epochs", type=int, default=None)
     return parser.parse_args()
+
+
+def parse_ensemble_seeds(seed_text, default_seed):
+    """Parse optional comma-separated ensemble seeds."""
+    if seed_text is None or str(seed_text).strip() == "":
+        return (int(default_seed),)
+    seeds = []
+    for part in str(seed_text).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        seeds.append(int(part))
+    if not seeds:
+        raise ValueError("--ensemble-seeds must contain at least one integer seed")
+    return tuple(seeds)
+
+
+def average_probabilities(probability_arrays):
+    """Average probability arrays from ensemble members."""
+    if not probability_arrays:
+        raise ValueError("At least one probability array is required")
+    return np.mean(np.stack(probability_arrays, axis=0), axis=0)
 
 
 def build_model(args, cfg):
@@ -116,7 +140,20 @@ def build_model(args, cfg):
     raise ValueError(f"Unknown model: {args.model}")
 
 
-def evaluate(model, loader, device):
+def predict_proba_loader(model, loader, device, amp=False):
+    """Return class probabilities for all samples in a loader."""
+    model.eval()
+    probas = []
+    with torch.no_grad():
+        for x, _ in loader:
+            x = x.to(device, non_blocking=True)
+            with torch.amp.autocast("cuda", enabled=amp and device.type == "cuda"):
+                logits = model(x)
+            probas.append(torch.softmax(logits, dim=1).detach().cpu().numpy())
+    return np.concatenate(probas, axis=0) if probas else np.empty((0, 2), dtype=np.float32)
+
+
+def evaluate(model, loader, device, amp=False):
     model.eval()
     correct = 0
     total = 0
@@ -126,7 +163,8 @@ def evaluate(model, loader, device):
         for x, y in loader:
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
-            logits = model(x)
+            with torch.amp.autocast("cuda", enabled=amp and device.type == "cuda"):
+                logits = model(x)
             losses.append(float(criterion(logits, y).item()))
             preds = logits.argmax(dim=1)
             correct += int((preds == y).sum().item())
@@ -134,7 +172,7 @@ def evaluate(model, loader, device):
     return correct / max(1, total), float(np.mean(losses)) if losses else 0.0
 
 
-def train_fold(args, cfg, X, y, subjects, test_subject, logger):
+def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
     device = torch.device(args.device)
     train_ds, val_ds, _ = make_loso_raw_datasets(
         X,
@@ -165,6 +203,7 @@ def train_fold(args, cfg, X, y, subjects, test_subject, logger):
 
     best_acc = 0.0
     best_epoch = 0
+    best_state = None
     stale_epochs = 0
 
     for epoch in range(1, args.epochs + 1):
@@ -182,11 +221,12 @@ def train_fold(args, cfg, X, y, subjects, test_subject, logger):
             scaler.update()
             running_loss += float(loss.item()) * int(y_batch.numel())
 
-        val_acc, val_loss = evaluate(model, val_loader, device)
+        val_acc, val_loss = evaluate(model, val_loader, device, amp=args.amp)
         train_loss = running_loss / max(1, len(train_ds))
         if val_acc > best_acc:
             best_acc = val_acc
             best_epoch = epoch
+            best_state = deepcopy(model.state_dict())
             stale_epochs = 0
         else:
             stale_epochs += 1
@@ -199,7 +239,41 @@ def train_fold(args, cfg, X, y, subjects, test_subject, logger):
         if stale_epochs >= args.patience:
             break
 
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    return model, val_ds, best_acc, best_epoch
+
+
+def train_fold(args, cfg, X, y, subjects, test_subject, logger):
+    _, _, best_acc, best_epoch = train_fold_model(args, cfg, X, y, subjects, test_subject, logger)
     return best_acc, best_epoch
+
+
+def train_fold_ensemble(args, cfg, X, y, subjects, test_subject, ensemble_seeds, logger):
+    """Train multiple seed members for one fold and average validation probabilities."""
+    device = torch.device(args.device)
+    member_probas = []
+    member_summaries = []
+    val_targets = None
+    for member_idx, member_seed in enumerate(ensemble_seeds, start=1):
+        set_seed(member_seed)
+        logger.info(f"    ensemble member {member_idx}/{len(ensemble_seeds)} seed={member_seed}")
+        model, val_ds, best_acc, best_epoch = train_fold_model(args, cfg, X, y, subjects, test_subject, logger)
+        val_loader = make_data_loader(
+            val_ds,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+        )
+        member_probas.append(predict_proba_loader(model, val_loader, device, amp=args.amp))
+        member_summaries.append((member_seed, best_acc, best_epoch))
+        if val_targets is None:
+            val_targets = val_ds.y
+
+    ensemble_proba = average_probabilities(member_probas)
+    preds = ensemble_proba.argmax(axis=1)
+    ensemble_acc = float(np.mean(preds == val_targets))
+    return ensemble_acc, member_summaries
 
 
 def train_final_model(args, cfg, X, y, logger):
@@ -245,12 +319,13 @@ def train_final_model(args, cfg, X, y, logger):
     return model, stats
 
 
-def predict_test_raw(model, stats, test_dir, args, logger):
-    """Predict all public test trials with a raw EEG model."""
+def predict_test_raw_proba(model, stats, test_dir, args, logger):
+    """Predict class probabilities for all public test trials with a raw EEG model."""
     device = torch.device(args.device)
     model.eval()
     test_data = load_test_data(test_dir)
-    predictions = []
+    rows = []
+    probas = []
     with torch.no_grad():
         for user_id, trials in test_data.items():
             test_ds = RawEEGDataset(trials, np.zeros(len(trials), dtype=np.int64), stats)
@@ -260,16 +335,24 @@ def predict_test_raw(model, stats, test_dir, args, logger):
                 shuffle=False,
                 num_workers=args.num_workers,
             )
-            subject_preds = []
-            for x, _ in test_loader:
-                x = x.to(device, non_blocking=True)
-                with torch.amp.autocast("cuda", enabled=args.amp and device.type == "cuda"):
-                    logits = model(x)
-                subject_preds.extend(logits.argmax(dim=1).detach().cpu().numpy().astype(int).tolist())
-
-            for trial_idx, pred in enumerate(subject_preds, start=1):
-                predictions.append((user_id, trial_idx, int(pred)))
+            subject_proba = predict_proba_loader(model, test_loader, device, amp=args.amp)
+            subject_preds = subject_proba.argmax(axis=1).astype(int).tolist()
+            probas.append(subject_proba)
+            for trial_idx in range(1, len(subject_preds) + 1):
+                rows.append((user_id, trial_idx))
             logger.info(f"  {user_id}: {np.asarray(subject_preds, dtype=int)} (trials 1-8)")
+    return rows, np.concatenate(probas, axis=0) if probas else np.empty((0, 2), dtype=np.float32)
+
+
+def rows_to_predictions(rows, probas):
+    preds = probas.argmax(axis=1).astype(int).tolist()
+    return [(user_id, trial_idx, int(pred)) for (user_id, trial_idx), pred in zip(rows, preds)]
+
+
+def predict_test_raw(model, stats, test_dir, args, logger):
+    """Predict all public test trials with a raw EEG model."""
+    rows, probas = predict_test_raw_proba(model, stats, test_dir, args, logger)
+    predictions = rows_to_predictions(rows, probas)
     return predictions
 
 
@@ -290,10 +373,13 @@ def main():
             cfg["output"][key] = os.path.abspath(os.path.join(base_dir, cfg["output"][key]))
 
     seed = args.seed if args.seed is not None else cfg["training"]["random_seed"]
+    ensemble_seeds = parse_ensemble_seeds(args.ensemble_seeds, seed)
     set_seed(seed)
     logger, _ = setup_logging(cfg["output"]["log_dir"])
     logger.info("=" * 60)
     logger.info(f"GPU baseline: {args.model}, device={args.device}, amp={args.amp}")
+    if len(ensemble_seeds) > 1:
+        logger.info(f"Ensemble seeds: {list(ensemble_seeds)}")
     logger.info("=" * 60)
 
     X, y, subjects = load_train_data(
@@ -314,7 +400,18 @@ def main():
 
         scores = []
         for i, test_subject in enumerate(eval_subjects, start=1):
-            acc, best_epoch = train_fold(args, cfg, X, y, subjects, test_subject, logger)
+            if len(ensemble_seeds) > 1:
+                acc, member_summaries = train_fold_ensemble(
+                    args, cfg, X, y, subjects, test_subject, ensemble_seeds, logger
+                )
+                summary = ", ".join(
+                    f"seed={member_seed}:acc={member_acc:.4f}@{member_epoch}"
+                    for member_seed, member_acc, member_epoch in member_summaries
+                )
+                best_epoch = f"ensemble({summary})"
+            else:
+                set_seed(ensemble_seeds[0])
+                acc, best_epoch = train_fold(args, cfg, X, y, subjects, test_subject, logger)
             scores.append(acc)
             logger.info(f"  [{i}/{len(eval_subjects)}] {test_subject}: best_acc={acc:.4f} epoch={best_epoch}")
 
@@ -332,16 +429,31 @@ def main():
         )
         model_output = args.model_output or os.path.join(cfg["output"]["model_dir"], f"{args.model}.pt")
         logger.info("Training final raw EEG model on all labeled subjects...")
-        model, stats = train_final_model(args, cfg, X, y, logger)
-        predictions = predict_test_raw(model, stats, cfg["data"]["test_dir"], args, logger)
+        model_states = []
+        test_probas = []
+        test_rows = None
+        stats = None
+        for member_idx, member_seed in enumerate(ensemble_seeds, start=1):
+            set_seed(member_seed)
+            if len(ensemble_seeds) > 1:
+                logger.info(f"  final ensemble member {member_idx}/{len(ensemble_seeds)} seed={member_seed}")
+            model, stats = train_final_model(args, cfg, X, y, logger)
+            rows, probas = predict_test_raw_proba(model, stats, cfg["data"]["test_dir"], args, logger)
+            if test_rows is None:
+                test_rows = rows
+            test_probas.append(probas)
+            model_states.append({"seed": member_seed, "state_dict": model.state_dict()})
+
+        predictions = rows_to_predictions(test_rows, average_probabilities(test_probas))
         save_submission(predictions, output_path)
         os.makedirs(os.path.dirname(model_output), exist_ok=True)
         torch.save(
             {
-                "model": model.state_dict(),
+                "model": model_states[0]["state_dict"] if len(model_states) == 1 else model_states,
                 "model_name": args.model,
                 "channel_mean": stats.mean,
                 "channel_std": stats.std,
+                "ensemble_seeds": ensemble_seeds,
                 "args": vars(args),
             },
             model_output,
