@@ -8,8 +8,17 @@ import unittest
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from run_gpu_baselines import average_probabilities, make_criterion, parse_ensemble_seeds, resolve_signal_samples
+from run_gpu_baselines import (
+    average_probabilities,
+    resolve_eval_seed,
+    make_bd_conformer_kwargs,
+    make_criterion,
+    parse_ensemble_seeds,
+    resolve_signal_samples,
+)
+from raw_dataset import standardize_by_window
 
 
 class GPUBaselineHelperTests(unittest.TestCase):
@@ -37,11 +46,51 @@ class GPUBaselineHelperTests(unittest.TestCase):
 
         self.assertAlmostEqual(criterion.label_smoothing, 0.1)
 
+    def test_resolve_eval_seed_defaults_to_training_seed(self):
+        args = type("Args", (), {"eval_seed": None})()
+
+        self.assertEqual(resolve_eval_seed(args, training_seed=42), 42)
+
+    def test_resolve_eval_seed_uses_override(self):
+        args = type("Args", (), {"eval_seed": 42})()
+
+        self.assertEqual(resolve_eval_seed(args, training_seed=13), 42)
+
     def test_resolve_signal_samples_uses_overrides_when_present(self):
         cfg = {"signal": {"sample_rate": 250, "window_size_sec": 10, "train_stride_sec": 5}}
 
         self.assertEqual(resolve_signal_samples(cfg, train_stride_sec=None), (2500, 1250))
         self.assertEqual(resolve_signal_samples(cfg, train_stride_sec=2.5), (2500, 625))
+
+    def test_make_bd_conformer_kwargs_supports_new_braindecode_names(self):
+        args = type("Args", (), {"num_layers": 2, "num_heads": 4, "dropout": 0.2})()
+        cfg = {"signal": {"n_channels": 30, "sample_rate": 250}}
+
+        kwargs = make_bd_conformer_kwargs(
+            args,
+            cfg,
+            window_size=2500,
+            signature_parameters={"num_layers", "num_heads"},
+        )
+
+        self.assertEqual(kwargs["num_layers"], 2)
+        self.assertEqual(kwargs["num_heads"], 4)
+        self.assertNotIn("att_depth", kwargs)
+        self.assertNotIn("att_heads", kwargs)
+
+    def test_standardize_by_window_normalizes_each_window_channel(self):
+        X = np.asarray(
+            [
+                [[1.0, 2.0, 3.0, 4.0], [10.0, 12.0, 14.0, 16.0]],
+                [[-2.0, 0.0, 2.0, 4.0], [5.0, 7.0, 9.0, 11.0]],
+            ],
+            dtype=np.float32,
+        )
+
+        standardized = standardize_by_window(X)
+
+        np.testing.assert_allclose(standardized.mean(axis=-1), np.zeros((2, 2)), atol=1e-6)
+        np.testing.assert_allclose(standardized.std(axis=-1), np.ones((2, 2)), atol=1e-6)
 
 
 if __name__ == "__main__":

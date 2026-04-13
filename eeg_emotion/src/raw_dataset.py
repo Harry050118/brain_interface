@@ -34,6 +34,16 @@ def standardize_raw_eeg(X: np.ndarray, stats: ChannelStats) -> np.ndarray:
     return ((X - stats.mean) / stats.std).astype(np.float32, copy=False)
 
 
+def standardize_by_window(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    """Apply per-window, per-channel normalization across time."""
+    if X.ndim != 3:
+        raise ValueError(f"Expected X shape (n, channels, time), got {X.shape}")
+    mean = X.mean(axis=-1, keepdims=True).astype(np.float32)
+    std = X.std(axis=-1, keepdims=True).astype(np.float32)
+    std = np.maximum(std, eps)
+    return ((X - mean) / std).astype(np.float32, copy=False)
+
+
 class RawEEGDataset(Dataset):
     """Torch dataset for raw EEG windows.
 

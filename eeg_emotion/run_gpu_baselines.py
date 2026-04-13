@@ -2,6 +2,7 @@
 """GPU-oriented raw EEG baseline runner."""
 
 import argparse
+import inspect
 import os
 import sys
 import time
@@ -20,7 +21,15 @@ sys.path.insert(0, os.path.join(_base, "models"))
 from data_loader import load_test_data, load_train_data
 from models.eeg_token_transformer import EEGFactorizedTransformer, EEGTokenTransformer
 from predict import save_submission
-from raw_dataset import RawEEGDataset, compute_channel_stats, iter_unique_subjects, make_data_loader, make_loso_raw_datasets
+from raw_dataset import (
+    RawEEGDataset,
+    compute_channel_stats,
+    iter_unique_subjects,
+    loso_masks,
+    make_data_loader,
+    make_loso_raw_datasets,
+    standardize_by_window,
+)
 from train import select_eval_subjects
 from utils import set_seed, setup_logging
 
@@ -43,6 +52,7 @@ def parse_args():
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--eval-seed", type=int, default=None)
     parser.add_argument("--ensemble-seeds", default=None, help="Comma-separated seeds for probability averaging.")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -56,6 +66,7 @@ def parse_args():
     parser.add_argument("--noise-std", type=float, default=0.0)
     parser.add_argument("--channel-drop-prob", type=float, default=0.0)
     parser.add_argument("--max-time-shift", type=int, default=0)
+    parser.add_argument("--norm-mode", choices=["fold", "window"], default="fold")
     parser.add_argument("--save-submission", action="store_true")
     parser.add_argument("--output", default=None)
     parser.add_argument("--model-output", default=None)
@@ -78,6 +89,11 @@ def parse_ensemble_seeds(seed_text, default_seed):
     return tuple(seeds)
 
 
+def resolve_eval_seed(args, training_seed):
+    """Return the seed used to choose the screening subject subset."""
+    return int(training_seed) if args.eval_seed is None else int(args.eval_seed)
+
+
 def average_probabilities(probability_arrays):
     """Average probability arrays from ensemble members."""
     if not probability_arrays:
@@ -95,6 +111,28 @@ def resolve_signal_samples(cfg, train_stride_sec=None):
     sample_rate = cfg["signal"]["sample_rate"]
     stride_sec = cfg["signal"]["train_stride_sec"] if train_stride_sec is None else train_stride_sec
     return int(round(sample_rate * cfg["signal"]["window_size_sec"])), int(round(sample_rate * stride_sec))
+
+
+def make_bd_conformer_kwargs(args, cfg, window_size, signature_parameters=None):
+    """Build EEGConformer kwargs across Braindecode parameter name changes."""
+    params = set(signature_parameters or inspect.signature(EEGConformer).parameters)
+    kwargs = {
+        "n_chans": cfg["signal"]["n_channels"],
+        "n_times": window_size,
+        "sfreq": cfg["signal"]["sample_rate"],
+        "n_outputs": 2,
+        "drop_prob": args.dropout,
+        "att_drop_prob": args.dropout,
+    }
+    if "num_layers" in params:
+        kwargs["num_layers"] = args.num_layers
+    else:
+        kwargs["att_depth"] = args.num_layers
+    if "num_heads" in params:
+        kwargs["num_heads"] = args.num_heads
+    else:
+        kwargs["att_heads"] = args.num_heads
+    return kwargs
 
 
 def build_model(args, cfg):
@@ -141,16 +179,7 @@ def build_model(args, cfg):
             attn_drop_prob=args.dropout,
         )
     if args.model == "bd_conformer":
-        return EEGConformer(
-            n_chans=cfg["signal"]["n_channels"],
-            n_times=window_size,
-            sfreq=cfg["signal"]["sample_rate"],
-            n_outputs=2,
-            att_depth=args.num_layers,
-            att_heads=args.num_heads,
-            drop_prob=args.dropout,
-            att_drop_prob=args.dropout,
-        )
+        return EEGConformer(**make_bd_conformer_kwargs(args, cfg, window_size))
     raise ValueError(f"Unknown model: {args.model}")
 
 
@@ -188,15 +217,27 @@ def evaluate(model, loader, device, amp=False, label_smoothing=0.0):
 
 def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
     device = torch.device(args.device)
-    train_ds, val_ds, _ = make_loso_raw_datasets(
-        X,
-        y,
-        subjects,
-        test_subject,
-        train_noise_std=args.noise_std,
-        train_channel_drop_prob=args.channel_drop_prob,
-        train_max_time_shift=args.max_time_shift,
-    )
+    if args.norm_mode == "window":
+        train_mask, test_mask = loso_masks(subjects, test_subject)
+        train_ds = RawEEGDataset(
+            X[train_mask],
+            y[train_mask],
+            None,
+            noise_std=args.noise_std,
+            channel_drop_prob=args.channel_drop_prob,
+            max_time_shift=args.max_time_shift,
+        )
+        val_ds = RawEEGDataset(X[test_mask], y[test_mask], None)
+    else:
+        train_ds, val_ds, _ = make_loso_raw_datasets(
+            X,
+            y,
+            subjects,
+            test_subject,
+            train_noise_std=args.noise_std,
+            train_channel_drop_prob=args.channel_drop_prob,
+            train_max_time_shift=args.max_time_shift,
+        )
     train_loader = make_data_loader(
         train_ds,
         batch_size=args.batch_size,
@@ -293,7 +334,7 @@ def train_fold_ensemble(args, cfg, X, y, subjects, test_subject, ensemble_seeds,
 def train_final_model(args, cfg, X, y, logger):
     """Train one model on all labeled windows for final test prediction."""
     device = torch.device(args.device)
-    stats = compute_channel_stats(X)
+    stats = None if args.norm_mode == "window" else compute_channel_stats(X)
     train_ds = RawEEGDataset(
         X,
         y,
@@ -342,6 +383,8 @@ def predict_test_raw_proba(model, stats, test_dir, args, logger):
     probas = []
     with torch.no_grad():
         for user_id, trials in test_data.items():
+            if args.norm_mode == "window":
+                trials = standardize_by_window(trials)
             test_ds = RawEEGDataset(trials, np.zeros(len(trials), dtype=np.int64), stats)
             test_loader = make_data_loader(
                 test_ds,
@@ -387,6 +430,7 @@ def main():
             cfg["output"][key] = os.path.abspath(os.path.join(base_dir, cfg["output"][key]))
 
     seed = args.seed if args.seed is not None else cfg["training"]["random_seed"]
+    eval_seed = resolve_eval_seed(args, seed)
     ensemble_seeds = parse_ensemble_seeds(args.ensemble_seeds, seed)
     set_seed(seed)
     logger, _ = setup_logging(cfg["output"]["log_dir"])
@@ -402,6 +446,8 @@ def main():
         stride=resolve_signal_samples(cfg, args.train_stride_sec)[1],
         clip_sigma=cfg["signal"]["clip_sigma"],
     )
+    if args.norm_mode == "window":
+        X = standardize_by_window(X)
     logger.info(f"Raw windows: {X.shape}, subjects={len(iter_unique_subjects(subjects))}")
 
     if not args.skip_loso:
@@ -409,7 +455,7 @@ def main():
             eval_subjects = iter_unique_subjects(subjects)
         else:
             n_eval_subjects = args.n_eval_subjects or cfg["training"].get("n_eval_subjects")
-            eval_subjects = select_eval_subjects(subjects, n_eval_subjects, seed)
+            eval_subjects = select_eval_subjects(subjects, n_eval_subjects, eval_seed)
         logger.info(f"Eval subjects: {list(eval_subjects)}")
 
         scores = []
