@@ -68,6 +68,7 @@ def parse_args():
     parser.add_argument("--max-time-shift", type=int, default=0)
     parser.add_argument("--norm-mode", choices=["fold", "window"], default="fold")
     parser.add_argument("--balanced-rank", action="store_true")
+    parser.add_argument("--trial-balanced-rank", action="store_true")
     parser.add_argument("--save-submission", action="store_true")
     parser.add_argument("--output", default=None)
     parser.add_argument("--model-output", default=None)
@@ -126,6 +127,25 @@ def balanced_rank_predictions(probas):
     positive_rank = np.argsort(probas[:, 1], kind="mergesort")
     preds[positive_rank[-n_positive:]] = 1
     return preds
+
+
+def trial_balanced_rank_predictions(probas, windows_per_trial):
+    """Aggregate consecutive windows to trials, then rank trials with a balanced prior."""
+    probas = np.asarray(probas)
+    windows_per_trial = int(windows_per_trial)
+    if windows_per_trial <= 0:
+        raise ValueError("windows_per_trial must be positive")
+    if probas.shape[0] % windows_per_trial != 0:
+        raise ValueError(
+            f"Expected window count divisible by {windows_per_trial}, got {probas.shape[0]}"
+        )
+    trial_probas = probas.reshape(-1, windows_per_trial, probas.shape[1]).mean(axis=1)
+    trial_preds = balanced_rank_predictions(trial_probas)
+    return np.repeat(trial_preds, windows_per_trial)
+
+
+def uses_balanced_postprocess(args):
+    return bool(args.balanced_rank or args.trial_balanced_rank)
 
 
 def checkpoint_channel_stats(stats):
@@ -230,7 +250,16 @@ def predict_proba_loader(model, loader, device, amp=False):
     return np.concatenate(probas, axis=0) if probas else np.empty((0, 2), dtype=np.float32)
 
 
-def evaluate(model, loader, device, amp=False, label_smoothing=0.0, balanced_rank=False):
+def evaluate(
+    model,
+    loader,
+    device,
+    amp=False,
+    label_smoothing=0.0,
+    balanced_rank=False,
+    trial_balanced_rank=False,
+    windows_per_trial=9,
+):
     model.eval()
     correct = 0
     total = 0
@@ -251,8 +280,12 @@ def evaluate(model, loader, device, amp=False, label_smoothing=0.0, balanced_ran
             preds = proba.argmax(dim=1)
             correct += int((preds == y).sum().item())
             total += int(y.numel())
-    if balanced_rank and probas:
-        balanced_preds = balanced_rank_predictions(np.concatenate(probas, axis=0))
+    if (balanced_rank or trial_balanced_rank) and probas:
+        proba_arr = np.concatenate(probas, axis=0)
+        if trial_balanced_rank:
+            balanced_preds = trial_balanced_rank_predictions(proba_arr, windows_per_trial)
+        else:
+            balanced_preds = balanced_rank_predictions(proba_arr)
         target_arr = np.concatenate(targets, axis=0)
         correct = int((balanced_preds == target_arr).sum())
         total = int(target_arr.shape[0])
@@ -327,6 +360,8 @@ def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
             amp=args.amp,
             label_smoothing=args.label_smoothing,
             balanced_rank=args.balanced_rank,
+            trial_balanced_rank=args.trial_balanced_rank,
+            windows_per_trial=args.windows_per_trial,
         )
         train_loss = running_loss / max(1, len(train_ds))
         if val_acc > best_acc:
@@ -377,7 +412,12 @@ def train_fold_ensemble(args, cfg, X, y, subjects, test_subject, ensemble_seeds,
             val_targets = val_ds.y
 
     ensemble_proba = average_probabilities(member_probas)
-    preds = balanced_rank_predictions(ensemble_proba) if args.balanced_rank else ensemble_proba.argmax(axis=1)
+    if args.trial_balanced_rank:
+        preds = trial_balanced_rank_predictions(ensemble_proba, args.windows_per_trial)
+    elif args.balanced_rank:
+        preds = balanced_rank_predictions(ensemble_proba)
+    else:
+        preds = ensemble_proba.argmax(axis=1)
     ensemble_acc = float(np.mean(preds == val_targets))
     return ensemble_acc, member_summaries
 
@@ -444,7 +484,7 @@ def predict_test_raw_proba(model, stats, test_dir, args, logger):
                 num_workers=args.num_workers,
             )
             subject_proba = predict_proba_loader(model, test_loader, device, amp=args.amp)
-            if args.balanced_rank:
+            if uses_balanced_postprocess(args):
                 subject_preds = balanced_rank_predictions(subject_proba).astype(int).tolist()
             else:
                 subject_preds = subject_proba.argmax(axis=1).astype(int).tolist()
@@ -475,7 +515,7 @@ def rows_to_predictions(rows, probas, balanced_rank=False):
 def predict_test_raw(model, stats, test_dir, args, logger):
     """Predict all public test trials with a raw EEG model."""
     rows, probas = predict_test_raw_proba(model, stats, test_dir, args, logger)
-    predictions = rows_to_predictions(rows, probas, balanced_rank=args.balanced_rank)
+    predictions = rows_to_predictions(rows, probas, balanced_rank=uses_balanced_postprocess(args))
     return predictions
 
 
@@ -506,10 +546,14 @@ def main():
         logger.info(f"Ensemble seeds: {list(ensemble_seeds)}")
     logger.info("=" * 60)
 
+    window_size, stride = resolve_signal_samples(cfg, args.train_stride_sec)
+    segment_samples = int(round(cfg["signal"]["sample_rate"] * 50))
+    args.windows_per_trial = 1 + max(0, (segment_samples - window_size) // stride)
+
     X, y, subjects = load_train_data(
         train_dir=cfg["data"]["train_dir"],
-        window_size=resolve_signal_samples(cfg, args.train_stride_sec)[0],
-        stride=resolve_signal_samples(cfg, args.train_stride_sec)[1],
+        window_size=window_size,
+        stride=stride,
         clip_sigma=cfg["signal"]["clip_sigma"],
     )
     if uses_window_normalization(args.norm_mode):
@@ -572,7 +616,7 @@ def main():
         predictions = rows_to_predictions(
             test_rows,
             average_probabilities(test_probas),
-            balanced_rank=args.balanced_rank,
+            balanced_rank=uses_balanced_postprocess(args),
         )
         save_submission(predictions, output_path)
         os.makedirs(os.path.dirname(model_output), exist_ok=True)

@@ -19,6 +19,8 @@ from run_gpu_baselines import (
     make_criterion,
     parse_ensemble_seeds,
     resolve_signal_samples,
+    trial_balanced_rank_predictions,
+    uses_balanced_postprocess,
 )
 from raw_dataset import standardize_by_window
 
@@ -73,6 +75,25 @@ class GPUBaselineHelperTests(unittest.TestCase):
 
         self.assertEqual(preds.shape, (72,))
         self.assertEqual(int(preds.sum()), 36)
+
+    def test_trial_balanced_rank_predictions_aggregates_window_groups(self):
+        trial_scores = np.asarray([0.8, 0.2, 0.7, 0.1], dtype=np.float32)
+        probas = np.repeat(np.column_stack([1.0 - trial_scores, trial_scores]), repeats=3, axis=0)
+
+        preds = trial_balanced_rank_predictions(probas, windows_per_trial=3)
+
+        np.testing.assert_array_equal(preds, np.asarray([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0]))
+
+    def test_trial_balanced_rank_predictions_rejects_incomplete_groups(self):
+        probas = np.asarray([[0.7, 0.3], [0.2, 0.8]], dtype=np.float32)
+
+        with self.assertRaises(ValueError):
+            trial_balanced_rank_predictions(probas, windows_per_trial=3)
+
+    def test_uses_balanced_postprocess_includes_trial_balanced_rank(self):
+        args = type("Args", (), {"balanced_rank": False, "trial_balanced_rank": True})()
+
+        self.assertTrue(uses_balanced_postprocess(args))
 
     def test_checkpoint_channel_stats_allows_window_norm_without_stats(self):
         mean, std = checkpoint_channel_stats(None)
