@@ -1,0 +1,38 @@
+2026-04-14 03:57:15,882 | INFO | ============================================================
+2026-04-14 03:57:15,882 | INFO | GPU baseline: bd_conformer, device=cuda, amp=True
+2026-04-14 03:57:15,882 | INFO | ============================================================
+2026-04-14 03:57:26,180 | INFO | Raw windows: (4320, 30, 2500), subjects=60
+2026-04-14 03:57:26,181 | INFO | Skipping LOSO evaluation by request.
+2026-04-14 03:57:26,181 | INFO | Training final raw EEG model on all labeled subjects...
+2026-04-14 03:57:40,533 | INFO |     final epoch 1/20: train_loss=0.7046
+2026-04-14 03:57:50,327 | INFO |     final epoch 2/20: train_loss=0.6660
+2026-04-14 03:58:00,191 | INFO |     final epoch 3/20: train_loss=0.6221
+2026-04-14 03:58:09,971 | INFO |     final epoch 4/20: train_loss=0.5911
+2026-04-14 03:58:19,796 | INFO |     final epoch 5/20: train_loss=0.5691
+2026-04-14 03:58:29,588 | INFO |     final epoch 6/20: train_loss=0.5321
+2026-04-14 03:58:39,432 | INFO |     final epoch 7/20: train_loss=0.5124
+2026-04-14 03:58:49,227 | INFO |     final epoch 8/20: train_loss=0.5082
+2026-04-14 03:58:59,175 | INFO |     final epoch 9/20: train_loss=0.4801
+2026-04-14 03:59:08,942 | INFO |     final epoch 10/20: train_loss=0.4743
+2026-04-14 03:59:18,719 | INFO |     final epoch 11/20: train_loss=0.4617
+2026-04-14 03:59:28,477 | INFO |     final epoch 12/20: train_loss=0.4293
+2026-04-14 03:59:38,302 | INFO |     final epoch 13/20: train_loss=0.4252
+2026-04-14 03:59:48,126 | INFO |     final epoch 14/20: train_loss=0.4106
+2026-04-14 03:59:57,905 | INFO |     final epoch 15/20: train_loss=0.4031
+2026-04-14 04:00:07,780 | INFO |     final epoch 16/20: train_loss=0.3943
+2026-04-14 04:00:17,600 | INFO |     final epoch 17/20: train_loss=0.3767
+2026-04-14 04:00:27,340 | INFO |     final epoch 18/20: train_loss=0.3908
+2026-04-14 04:00:37,088 | INFO |     final epoch 19/20: train_loss=0.3401
+2026-04-14 04:00:46,866 | INFO |     final epoch 20/20: train_loss=0.3422
+2026-04-14 04:00:47,308 | INFO |   P_test1: [0 1 1 1 0 0 1 0] (trials 1-8)
+2026-04-14 04:00:47,325 | INFO |   P_test10: [0 1 0 1 0 0 1 1] (trials 1-8)
+2026-04-14 04:00:47,345 | INFO |   P_test2: [1 1 1 1 0 0 0 0] (trials 1-8)
+2026-04-14 04:00:47,359 | INFO |   P_test3: [0 1 1 0 1 1 0 0] (trials 1-8)
+2026-04-14 04:00:47,373 | INFO |   P_test4: [0 1 1 1 0 1 0 0] (trials 1-8)
+2026-04-14 04:00:47,391 | INFO |   P_test5: [0 1 1 1 0 0 1 0] (trials 1-8)
+2026-04-14 04:00:47,405 | INFO |   P_test6: [0 1 0 1 1 0 0 1] (trials 1-8)
+2026-04-14 04:00:47,418 | INFO |   P_test7: [1 0 0 0 0 1 1 1] (trials 1-8)
+2026-04-14 04:00:47,437 | INFO |   P_test8: [1 1 1 1 0 0 0 0] (trials 1-8)
+2026-04-14 04:00:47,459 | INFO |   P_test9: [0 0 1 1 0 1 0 1] (trials 1-8)
+2026-04-14 04:00:47,520 | INFO | Saved final raw EEG model: eeg_emotion\outputs\models\bd_conformer_trial_balanced_rank.pt
+2026-04-14 04:00:47,520 | INFO | GPU baseline complete in 3.5 min

@@ -1,0 +1,188 @@
+2026-04-14 03:02:57,405 | INFO | ============================================================
+2026-04-14 03:02:57,406 | INFO | GPU baseline: bd_conformer, device=cuda, amp=True
+2026-04-14 03:02:57,406 | INFO | ============================================================
+2026-04-14 03:03:07,705 | INFO | Raw windows: (4320, 30, 2500), subjects=60
+2026-04-14 03:03:07,706 | INFO | Eval subjects: ['DEP1003', 'DEP1008', 'DEP1010', 'DEP1011', 'DEP1015', 'DEP1016', 'DEP1018', 'DEP1019', 'DEP1021', 'DEP1022', 'DEP1023', 'DEP1024', 'DEP1025', 'DEP1027', 'DEP1028', 'DEP1030', 'DEP1031', 'DEP1032', 'DEP1033', 'DEP1034', 'HC1003', 'HC1005', 'HC1006', 'HC1007', 'HC1010', 'HC1011', 'HC1013', 'HC1014', 'HC1015', 'HC1016', 'HC1017', 'HC1018', 'HC1019', 'HC1021', 'HC1022', 'HC1024', 'HC1025', 'HC1026', 'HC1028', 'HC1029', 'HC1032', 'HC1033', 'HC1034', 'HC1035', 'HC1038', 'HC1039', 'HC1040', 'HC1042', 'HC1046', 'HC1047', 'HC1048', 'HC1049', 'HC1050', 'HC1051', 'HC1053', 'HC1054', 'HC1056', 'HC1057', 'HC1067', 'HC1068']
+2026-04-14 03:03:21,942 | INFO |     epoch 1/20: train_loss=0.7021 val_loss=0.6736 val_acc=0.7500
+2026-04-14 03:03:50,904 | INFO |     epoch 4/20: train_loss=0.5764 val_loss=0.6831 val_acc=0.7500
+2026-04-14 03:04:00,598 | INFO |   [1/60] DEP1003: best_acc=1.0000 epoch=2
+2026-04-14 03:04:10,676 | INFO |     epoch 1/20: train_loss=0.7035 val_loss=0.7864 val_acc=0.7500
+2026-04-14 03:04:39,853 | INFO |     epoch 4/20: train_loss=0.5691 val_loss=0.7312 val_acc=1.0000
+2026-04-14 03:05:08,944 | INFO |   [2/60] DEP1008: best_acc=1.0000 epoch=4
+2026-04-14 03:05:18,905 | INFO |     epoch 1/20: train_loss=0.7104 val_loss=0.7853 val_acc=0.5000
+2026-04-14 03:05:48,229 | INFO |     epoch 4/20: train_loss=0.5800 val_loss=0.8108 val_acc=1.0000
+2026-04-14 03:05:57,965 | INFO |   [3/60] DEP1010: best_acc=1.0000 epoch=2
+2026-04-14 03:06:07,921 | INFO |     epoch 1/20: train_loss=0.7005 val_loss=0.5285 val_acc=1.0000
+2026-04-14 03:06:37,017 | INFO |     epoch 4/20: train_loss=0.5883 val_loss=0.1904 val_acc=1.0000
+2026-04-14 03:06:37,103 | INFO |   [4/60] DEP1011: best_acc=1.0000 epoch=1
+2026-04-14 03:06:47,067 | INFO |     epoch 1/20: train_loss=0.7094 val_loss=0.6760 val_acc=0.7500
+2026-04-14 03:07:16,150 | INFO |     epoch 4/20: train_loss=0.5946 val_loss=0.5274 val_acc=1.0000
+2026-04-14 03:07:35,489 | INFO |   [5/60] DEP1015: best_acc=1.0000 epoch=3
+2026-04-14 03:07:45,495 | INFO |     epoch 1/20: train_loss=0.7036 val_loss=0.7553 val_acc=0.7500
+2026-04-14 03:08:14,539 | INFO |     epoch 4/20: train_loss=0.6102 val_loss=0.5907 val_acc=0.7500
+2026-04-14 03:08:14,624 | INFO |   [6/60] DEP1016: best_acc=0.7500 epoch=1
+2026-04-14 03:08:24,592 | INFO |     epoch 1/20: train_loss=0.6890 val_loss=0.7342 val_acc=0.7500
+2026-04-14 03:08:53,890 | INFO |     epoch 4/20: train_loss=0.5783 val_loss=0.8047 val_acc=0.5000
+2026-04-14 03:08:53,974 | INFO |   [7/60] DEP1018: best_acc=0.7500 epoch=1
+2026-04-14 03:09:04,014 | INFO |     epoch 1/20: train_loss=0.7098 val_loss=0.6817 val_acc=0.5000
+2026-04-14 03:09:33,018 | INFO |     epoch 4/20: train_loss=0.5964 val_loss=0.5568 val_acc=0.7500
+2026-04-14 03:09:42,768 | INFO |   [8/60] DEP1019: best_acc=0.7500 epoch=2
+2026-04-14 03:09:52,755 | INFO |     epoch 1/20: train_loss=0.7029 val_loss=0.6963 val_acc=0.5000
+2026-04-14 03:10:21,963 | INFO |     epoch 4/20: train_loss=0.5934 val_loss=1.0928 val_acc=0.7500
+2026-04-14 03:10:41,314 | INFO |   [9/60] DEP1021: best_acc=0.7500 epoch=3
+2026-04-14 03:10:51,559 | INFO |     epoch 1/20: train_loss=0.7054 val_loss=0.6886 val_acc=0.5000
+2026-04-14 03:11:21,009 | INFO |     epoch 4/20: train_loss=0.5970 val_loss=0.5869 val_acc=1.0000
+2026-04-14 03:11:31,091 | INFO |   [10/60] DEP1022: best_acc=1.0000 epoch=2
+2026-04-14 03:11:41,231 | INFO |     epoch 1/20: train_loss=0.7117 val_loss=0.6828 val_acc=0.7500
+2026-04-14 03:12:10,845 | INFO |     epoch 4/20: train_loss=0.5871 val_loss=0.7148 val_acc=0.7500
+2026-04-14 03:12:10,930 | INFO |   [11/60] DEP1023: best_acc=0.7500 epoch=1
+2026-04-14 03:12:20,873 | INFO |     epoch 1/20: train_loss=0.7108 val_loss=0.7941 val_acc=0.7500
+2026-04-14 03:12:49,747 | INFO |     epoch 4/20: train_loss=0.6008 val_loss=0.7915 val_acc=0.7500
+2026-04-14 03:12:49,830 | INFO |   [12/60] DEP1024: best_acc=0.7500 epoch=1
+2026-04-14 03:12:59,756 | INFO |     epoch 1/20: train_loss=0.6926 val_loss=0.9521 val_acc=0.5000
+2026-04-14 03:13:28,858 | INFO |     epoch 4/20: train_loss=0.5577 val_loss=1.2167 val_acc=0.2500
+2026-04-14 03:13:38,614 | INFO |   [13/60] DEP1025: best_acc=0.7500 epoch=2
+2026-04-14 03:13:48,610 | INFO |     epoch 1/20: train_loss=0.7063 val_loss=0.7153 val_acc=0.2500
+2026-04-14 03:14:17,500 | INFO |     epoch 4/20: train_loss=0.5755 val_loss=1.3822 val_acc=0.5000
+2026-04-14 03:14:56,181 | INFO |     epoch 8/20: train_loss=0.4718 val_loss=1.5569 val_acc=0.7500
+2026-04-14 03:14:56,269 | INFO |   [14/60] DEP1027: best_acc=0.7500 epoch=5
+2026-04-14 03:15:06,340 | INFO |     epoch 1/20: train_loss=0.7073 val_loss=0.6441 val_acc=0.7500
+2026-04-14 03:15:35,355 | INFO |     epoch 4/20: train_loss=0.5872 val_loss=0.6271 val_acc=1.0000
+2026-04-14 03:15:54,696 | INFO |   [15/60] DEP1028: best_acc=1.0000 epoch=3
+2026-04-14 03:16:04,938 | INFO |     epoch 1/20: train_loss=0.6951 val_loss=0.6786 val_acc=0.7500
+2026-04-14 03:16:34,637 | INFO |     epoch 4/20: train_loss=0.5886 val_loss=1.0531 val_acc=1.0000
+2026-04-14 03:16:44,614 | INFO |   [16/60] DEP1030: best_acc=1.0000 epoch=2
+2026-04-14 03:16:54,579 | INFO |     epoch 1/20: train_loss=0.6963 val_loss=0.8620 val_acc=0.5000
+2026-04-14 03:17:23,578 | INFO |     epoch 4/20: train_loss=0.5636 val_loss=1.1289 val_acc=0.5000
+2026-04-14 03:17:23,665 | INFO |   [17/60] DEP1031: best_acc=0.5000 epoch=1
+2026-04-14 03:17:33,805 | INFO |     epoch 1/20: train_loss=0.7042 val_loss=0.7697 val_acc=0.7500
+2026-04-14 03:18:03,025 | INFO |     epoch 4/20: train_loss=0.5869 val_loss=0.6183 val_acc=0.7500
+2026-04-14 03:18:12,810 | INFO |   [18/60] DEP1032: best_acc=1.0000 epoch=2
+2026-04-14 03:18:22,855 | INFO |     epoch 1/20: train_loss=0.7006 val_loss=0.7708 val_acc=0.2500
+2026-04-14 03:18:51,940 | INFO |     epoch 4/20: train_loss=0.5720 val_loss=1.4598 val_acc=0.7500
+2026-04-14 03:19:21,053 | INFO |   [19/60] DEP1033: best_acc=0.7500 epoch=4
+2026-04-14 03:19:31,181 | INFO |     epoch 1/20: train_loss=0.7024 val_loss=0.7135 val_acc=0.5000
+2026-04-14 03:20:00,159 | INFO |     epoch 4/20: train_loss=0.5798 val_loss=0.7574 val_acc=0.5000
+2026-04-14 03:20:00,238 | INFO |   [20/60] DEP1034: best_acc=0.5000 epoch=1
+2026-04-14 03:20:10,256 | INFO |     epoch 1/20: train_loss=0.7219 val_loss=0.7020 val_acc=0.7500
+2026-04-14 03:20:39,362 | INFO |     epoch 4/20: train_loss=0.5918 val_loss=0.5353 val_acc=0.7500
+2026-04-14 03:20:39,449 | INFO |   [21/60] HC1003: best_acc=0.7500 epoch=1
+2026-04-14 03:20:49,354 | INFO |     epoch 1/20: train_loss=0.7056 val_loss=0.7604 val_acc=0.5000
+2026-04-14 03:21:18,287 | INFO |     epoch 4/20: train_loss=0.5729 val_loss=0.8025 val_acc=0.7500
+2026-04-14 03:21:27,964 | INFO |   [22/60] HC1005: best_acc=0.7500 epoch=2
+2026-04-14 03:21:37,911 | INFO |     epoch 1/20: train_loss=0.7022 val_loss=0.7168 val_acc=0.7500
+2026-04-14 03:22:06,910 | INFO |     epoch 4/20: train_loss=0.5812 val_loss=0.4315 val_acc=1.0000
+2026-04-14 03:22:16,701 | INFO |   [23/60] HC1006: best_acc=1.0000 epoch=2
+2026-04-14 03:22:26,775 | INFO |     epoch 1/20: train_loss=0.7122 val_loss=0.7142 val_acc=0.7500
+2026-04-14 03:22:56,293 | INFO |     epoch 4/20: train_loss=0.5930 val_loss=0.7658 val_acc=1.0000
+2026-04-14 03:23:25,958 | INFO |   [24/60] HC1007: best_acc=1.0000 epoch=4
+2026-04-14 03:23:36,001 | INFO |     epoch 1/20: train_loss=0.6968 val_loss=0.8337 val_acc=0.2500
+2026-04-14 03:24:05,023 | INFO |     epoch 4/20: train_loss=0.5730 val_loss=1.0949 val_acc=0.2500
+2026-04-14 03:24:05,113 | INFO |   [25/60] HC1010: best_acc=0.2500 epoch=1
+2026-04-14 03:24:15,987 | INFO |     epoch 1/20: train_loss=0.7074 val_loss=0.6814 val_acc=0.5000
+2026-04-14 03:24:45,603 | INFO |     epoch 4/20: train_loss=0.6081 val_loss=0.5804 val_acc=0.7500
+2026-04-14 03:24:55,504 | INFO |   [26/60] HC1011: best_acc=0.7500 epoch=2
+2026-04-14 03:25:05,888 | INFO |     epoch 1/20: train_loss=0.6919 val_loss=0.7388 val_acc=1.0000
+2026-04-14 03:25:36,287 | INFO |     epoch 4/20: train_loss=0.5623 val_loss=0.4526 val_acc=1.0000
+2026-04-14 03:25:36,376 | INFO |   [27/60] HC1013: best_acc=1.0000 epoch=1
+2026-04-14 03:25:46,538 | INFO |     epoch 1/20: train_loss=0.7001 val_loss=0.7073 val_acc=0.5000
+2026-04-14 03:26:16,139 | INFO |     epoch 4/20: train_loss=0.5843 val_loss=0.7112 val_acc=1.0000
+2026-04-14 03:26:46,159 | INFO |   [28/60] HC1014: best_acc=1.0000 epoch=4
+2026-04-14 03:26:56,603 | INFO |     epoch 1/20: train_loss=0.7051 val_loss=0.5882 val_acc=0.7500
+2026-04-14 03:27:26,923 | INFO |     epoch 4/20: train_loss=0.5816 val_loss=0.3928 val_acc=1.0000
+2026-04-14 03:27:56,635 | INFO |   [29/60] HC1015: best_acc=1.0000 epoch=4
+2026-04-14 03:28:06,595 | INFO |     epoch 1/20: train_loss=0.7074 val_loss=0.7841 val_acc=0.7500
+2026-04-14 03:28:35,754 | INFO |     epoch 4/20: train_loss=0.6018 val_loss=0.8994 val_acc=0.7500
+2026-04-14 03:28:35,845 | INFO |   [30/60] HC1016: best_acc=0.7500 epoch=1
+2026-04-14 03:28:45,890 | INFO |     epoch 1/20: train_loss=0.7075 val_loss=0.5214 val_acc=0.7500
+2026-04-14 03:29:14,815 | INFO |     epoch 4/20: train_loss=0.6000 val_loss=0.3352 val_acc=1.0000
+2026-04-14 03:29:24,580 | INFO |   [31/60] HC1017: best_acc=1.0000 epoch=2
+2026-04-14 03:29:34,797 | INFO |     epoch 1/20: train_loss=0.7073 val_loss=0.6815 val_acc=0.7500
+2026-04-14 03:30:04,437 | INFO |     epoch 4/20: train_loss=0.5895 val_loss=0.7609 val_acc=1.0000
+2026-04-14 03:30:34,257 | INFO |   [32/60] HC1018: best_acc=1.0000 epoch=4
+2026-04-14 03:30:44,254 | INFO |     epoch 1/20: train_loss=0.7079 val_loss=0.8010 val_acc=0.7500
+2026-04-14 03:31:13,170 | INFO |     epoch 4/20: train_loss=0.5954 val_loss=0.6775 val_acc=0.7500
+2026-04-14 03:31:13,260 | INFO |   [33/60] HC1019: best_acc=0.7500 epoch=1
+2026-04-14 03:31:23,311 | INFO |     epoch 1/20: train_loss=0.7054 val_loss=0.6496 val_acc=1.0000
+2026-04-14 03:31:52,326 | INFO |     epoch 4/20: train_loss=0.5883 val_loss=0.4338 val_acc=1.0000
+2026-04-14 03:31:52,414 | INFO |   [34/60] HC1021: best_acc=1.0000 epoch=1
+2026-04-14 03:32:02,470 | INFO |     epoch 1/20: train_loss=0.7048 val_loss=0.6747 val_acc=0.7500
+2026-04-14 03:32:31,446 | INFO |     epoch 4/20: train_loss=0.5963 val_loss=0.7574 val_acc=0.7500
+2026-04-14 03:32:31,537 | INFO |   [35/60] HC1022: best_acc=0.7500 epoch=1
+2026-04-14 03:32:41,780 | INFO |     epoch 1/20: train_loss=0.7010 val_loss=0.6602 val_acc=0.7500
+2026-04-14 03:33:10,890 | INFO |     epoch 4/20: train_loss=0.5796 val_loss=0.6421 val_acc=0.7500
+2026-04-14 03:33:10,980 | INFO |   [36/60] HC1024: best_acc=0.7500 epoch=1
+2026-04-14 03:33:21,129 | INFO |     epoch 1/20: train_loss=0.7004 val_loss=0.5145 val_acc=1.0000
+2026-04-14 03:33:50,665 | INFO |     epoch 4/20: train_loss=0.5997 val_loss=0.5422 val_acc=1.0000
+2026-04-14 03:33:50,753 | INFO |   [37/60] HC1025: best_acc=1.0000 epoch=1
+2026-04-14 03:34:00,695 | INFO |     epoch 1/20: train_loss=0.7083 val_loss=0.8975 val_acc=0.5000
+2026-04-14 03:34:29,656 | INFO |     epoch 4/20: train_loss=0.5933 val_loss=0.9699 val_acc=0.5000
+2026-04-14 03:34:49,313 | INFO |   [38/60] HC1026: best_acc=0.7500 epoch=3
+2026-04-14 03:34:59,310 | INFO |     epoch 1/20: train_loss=0.6937 val_loss=0.5796 val_acc=0.7500
+2026-04-14 03:35:28,297 | INFO |     epoch 4/20: train_loss=0.5742 val_loss=0.6782 val_acc=0.7500
+2026-04-14 03:35:28,381 | INFO |   [39/60] HC1028: best_acc=0.7500 epoch=1
+2026-04-14 03:35:38,396 | INFO |     epoch 1/20: train_loss=0.7139 val_loss=0.6547 val_acc=1.0000
+2026-04-14 03:36:07,472 | INFO |     epoch 4/20: train_loss=0.6138 val_loss=0.3947 val_acc=1.0000
+2026-04-14 03:36:07,561 | INFO |   [40/60] HC1029: best_acc=1.0000 epoch=1
+2026-04-14 03:36:17,742 | INFO |     epoch 1/20: train_loss=0.6897 val_loss=0.5456 val_acc=0.7500
+2026-04-14 03:36:47,395 | INFO |     epoch 4/20: train_loss=0.5689 val_loss=0.3839 val_acc=1.0000
+2026-04-14 03:36:57,292 | INFO |   [41/60] HC1032: best_acc=1.0000 epoch=2
+2026-04-14 03:37:07,348 | INFO |     epoch 1/20: train_loss=0.7083 val_loss=0.7229 val_acc=0.5000
+2026-04-14 03:37:36,649 | INFO |     epoch 4/20: train_loss=0.6114 val_loss=0.6190 val_acc=1.0000
+2026-04-14 03:37:56,066 | INFO |   [42/60] HC1033: best_acc=1.0000 epoch=3
+2026-04-14 03:38:06,120 | INFO |     epoch 1/20: train_loss=0.7061 val_loss=0.6936 val_acc=0.7500
+2026-04-14 03:38:35,046 | INFO |     epoch 4/20: train_loss=0.5919 val_loss=0.6226 val_acc=0.7500
+2026-04-14 03:38:35,130 | INFO |   [43/60] HC1034: best_acc=0.7500 epoch=1
+2026-04-14 03:38:45,251 | INFO |     epoch 1/20: train_loss=0.6951 val_loss=0.6579 val_acc=0.7500
+2026-04-14 03:39:14,223 | INFO |     epoch 4/20: train_loss=0.5685 val_loss=0.6980 val_acc=1.0000
+2026-04-14 03:39:23,865 | INFO |   [44/60] HC1035: best_acc=1.0000 epoch=2
+2026-04-14 03:39:33,809 | INFO |     epoch 1/20: train_loss=0.7171 val_loss=0.7950 val_acc=0.7500
+2026-04-14 03:40:02,798 | INFO |     epoch 4/20: train_loss=0.6139 val_loss=0.5348 val_acc=1.0000
+2026-04-14 03:40:12,524 | INFO |   [45/60] HC1038: best_acc=1.0000 epoch=2
+2026-04-14 03:40:22,643 | INFO |     epoch 1/20: train_loss=0.7125 val_loss=0.6501 val_acc=0.7500
+2026-04-14 03:40:52,306 | INFO |     epoch 4/20: train_loss=0.6005 val_loss=0.8723 val_acc=1.0000
+2026-04-14 03:41:02,225 | INFO |   [46/60] HC1039: best_acc=1.0000 epoch=2
+2026-04-14 03:41:12,191 | INFO |     epoch 1/20: train_loss=0.7060 val_loss=0.7604 val_acc=1.0000
+2026-04-14 03:41:41,165 | INFO |     epoch 4/20: train_loss=0.6244 val_loss=0.2594 val_acc=1.0000
+2026-04-14 03:41:41,249 | INFO |   [47/60] HC1040: best_acc=1.0000 epoch=1
+2026-04-14 03:41:51,375 | INFO |     epoch 1/20: train_loss=0.7121 val_loss=0.7213 val_acc=0.5000
+2026-04-14 03:42:20,440 | INFO |     epoch 4/20: train_loss=0.5933 val_loss=0.6881 val_acc=0.7500
+2026-04-14 03:42:30,220 | INFO |   [48/60] HC1042: best_acc=0.7500 epoch=2
+2026-04-14 03:42:40,268 | INFO |     epoch 1/20: train_loss=0.6995 val_loss=0.6295 val_acc=0.7500
+2026-04-14 03:43:09,172 | INFO |     epoch 4/20: train_loss=0.5803 val_loss=0.6558 val_acc=0.7500
+2026-04-14 03:43:09,254 | INFO |   [49/60] HC1046: best_acc=0.7500 epoch=1
+2026-04-14 03:43:19,277 | INFO |     epoch 1/20: train_loss=0.7035 val_loss=0.6911 val_acc=0.5000
+2026-04-14 03:43:48,469 | INFO |     epoch 4/20: train_loss=0.5759 val_loss=0.7049 val_acc=0.5000
+2026-04-14 03:43:58,159 | INFO |   [50/60] HC1047: best_acc=0.7500 epoch=2
+2026-04-14 03:44:08,102 | INFO |     epoch 1/20: train_loss=0.7072 val_loss=0.6704 val_acc=0.7500
+2026-04-14 03:44:37,102 | INFO |     epoch 4/20: train_loss=0.6011 val_loss=0.4705 val_acc=0.7500
+2026-04-14 03:44:37,186 | INFO |   [51/60] HC1048: best_acc=0.7500 epoch=1
+2026-04-14 03:44:47,486 | INFO |     epoch 1/20: train_loss=0.7021 val_loss=0.8766 val_acc=0.7500
+2026-04-14 03:45:16,956 | INFO |     epoch 4/20: train_loss=0.5729 val_loss=0.4183 val_acc=1.0000
+2026-04-14 03:45:26,936 | INFO |   [52/60] HC1049: best_acc=1.0000 epoch=2
+2026-04-14 03:45:37,227 | INFO |     epoch 1/20: train_loss=0.7069 val_loss=0.7729 val_acc=0.7500
+2026-04-14 03:46:06,329 | INFO |     epoch 4/20: train_loss=0.5760 val_loss=0.5716 val_acc=0.7500
+2026-04-14 03:46:06,414 | INFO |   [53/60] HC1050: best_acc=0.7500 epoch=1
+2026-04-14 03:46:16,481 | INFO |     epoch 1/20: train_loss=0.7122 val_loss=0.6673 val_acc=0.7500
+2026-04-14 03:46:45,679 | INFO |     epoch 4/20: train_loss=0.5967 val_loss=0.5450 val_acc=0.7500
+2026-04-14 03:46:45,761 | INFO |   [54/60] HC1051: best_acc=0.7500 epoch=1
+2026-04-14 03:46:55,962 | INFO |     epoch 1/20: train_loss=0.7011 val_loss=0.6244 val_acc=0.5000
+2026-04-14 03:47:25,573 | INFO |     epoch 4/20: train_loss=0.5689 val_loss=0.5588 val_acc=0.7500
+2026-04-14 03:47:55,554 | INFO |   [55/60] HC1053: best_acc=0.7500 epoch=4
+2026-04-14 03:48:05,474 | INFO |     epoch 1/20: train_loss=0.7098 val_loss=0.6690 val_acc=0.7500
+2026-04-14 03:48:34,656 | INFO |     epoch 4/20: train_loss=0.5908 val_loss=0.5562 val_acc=0.7500
+2026-04-14 03:48:44,356 | INFO |   [56/60] HC1054: best_acc=1.0000 epoch=2
+2026-04-14 03:48:54,209 | INFO |     epoch 1/20: train_loss=0.7046 val_loss=0.6035 val_acc=0.7500
+2026-04-14 03:49:23,368 | INFO |     epoch 4/20: train_loss=0.5726 val_loss=0.6880 val_acc=0.7500
+2026-04-14 03:49:23,454 | INFO |   [57/60] HC1056: best_acc=0.7500 epoch=1
+2026-04-14 03:49:33,438 | INFO |     epoch 1/20: train_loss=0.7057 val_loss=0.6050 val_acc=0.7500
+2026-04-14 03:50:02,421 | INFO |     epoch 4/20: train_loss=0.6126 val_loss=0.6193 val_acc=0.7500
+2026-04-14 03:50:02,506 | INFO |   [58/60] HC1057: best_acc=0.7500 epoch=1
+2026-04-14 03:50:12,557 | INFO |     epoch 1/20: train_loss=0.6921 val_loss=1.1593 val_acc=0.7500
+2026-04-14 03:50:41,591 | INFO |     epoch 4/20: train_loss=0.5567 val_loss=0.8353 val_acc=0.7500
+2026-04-14 03:50:41,679 | INFO |   [59/60] HC1067: best_acc=0.7500 epoch=1
+2026-04-14 03:50:51,708 | INFO |     epoch 1/20: train_loss=0.7056 val_loss=0.9165 val_acc=0.5000
+2026-04-14 03:51:20,741 | INFO |     epoch 4/20: train_loss=0.5864 val_loss=0.6804 val_acc=0.5000
+2026-04-14 03:51:20,828 | INFO |   [60/60] HC1068: best_acc=0.5000 epoch=1
+2026-04-14 03:51:20,829 | INFO | GPU baseline LOSO Mean Accuracy: 0.8417 (84.17%), std=0.1644
+2026-04-14 03:51:20,829 | INFO | GPU baseline complete in 48.4 min
