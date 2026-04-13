@@ -67,6 +67,7 @@ def parse_args():
     parser.add_argument("--channel-drop-prob", type=float, default=0.0)
     parser.add_argument("--max-time-shift", type=int, default=0)
     parser.add_argument("--norm-mode", choices=["fold", "window"], default="fold")
+    parser.add_argument("--balanced-rank", action="store_true")
     parser.add_argument("--save-submission", action="store_true")
     parser.add_argument("--output", default=None)
     parser.add_argument("--model-output", default=None)
@@ -94,11 +95,37 @@ def resolve_eval_seed(args, training_seed):
     return int(training_seed) if args.eval_seed is None else int(args.eval_seed)
 
 
+def uses_window_normalization(norm_mode: str) -> bool:
+    """Return whether data is already normalized window-by-window."""
+    return norm_mode == "window"
+
+
+def standardize_by_norm_mode(X: np.ndarray, norm_mode: str) -> np.ndarray:
+    """Apply the requested pre-dataset normalization mode."""
+    if norm_mode == "window":
+        return standardize_by_window(X)
+    return X
+
+
 def average_probabilities(probability_arrays):
     """Average probability arrays from ensemble members."""
     if not probability_arrays:
         raise ValueError("At least one probability array is required")
     return np.mean(np.stack(probability_arrays, axis=0), axis=0)
+
+
+def balanced_rank_predictions(probas):
+    """Predict exactly half positive samples by positive-class probability rank."""
+    probas = np.asarray(probas)
+    if probas.ndim != 2 or probas.shape[1] != 2:
+        raise ValueError(f"Expected probability shape (n, 2), got {probas.shape}")
+    n_positive = probas.shape[0] // 2
+    preds = np.zeros(probas.shape[0], dtype=np.int64)
+    if n_positive == 0:
+        return preds
+    positive_rank = np.argsort(probas[:, 1], kind="mergesort")
+    preds[positive_rank[-n_positive:]] = 1
+    return preds
 
 
 def make_criterion(label_smoothing=0.0):
@@ -196,11 +223,13 @@ def predict_proba_loader(model, loader, device, amp=False):
     return np.concatenate(probas, axis=0) if probas else np.empty((0, 2), dtype=np.float32)
 
 
-def evaluate(model, loader, device, amp=False, label_smoothing=0.0):
+def evaluate(model, loader, device, amp=False, label_smoothing=0.0, balanced_rank=False):
     model.eval()
     correct = 0
     total = 0
     losses = []
+    probas = []
+    targets = []
     criterion = make_criterion(label_smoothing)
     with torch.no_grad():
         for x, y in loader:
@@ -209,15 +238,23 @@ def evaluate(model, loader, device, amp=False, label_smoothing=0.0):
             with torch.amp.autocast("cuda", enabled=amp and device.type == "cuda"):
                 logits = model(x)
             losses.append(float(criterion(logits, y).item()))
-            preds = logits.argmax(dim=1)
+            proba = torch.softmax(logits, dim=1)
+            probas.append(proba.detach().cpu().numpy())
+            targets.append(y.detach().cpu().numpy())
+            preds = proba.argmax(dim=1)
             correct += int((preds == y).sum().item())
             total += int(y.numel())
+    if balanced_rank and probas:
+        balanced_preds = balanced_rank_predictions(np.concatenate(probas, axis=0))
+        target_arr = np.concatenate(targets, axis=0)
+        correct = int((balanced_preds == target_arr).sum())
+        total = int(target_arr.shape[0])
     return correct / max(1, total), float(np.mean(losses)) if losses else 0.0
 
 
 def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
     device = torch.device(args.device)
-    if args.norm_mode == "window":
+    if uses_window_normalization(args.norm_mode):
         train_mask, test_mask = loso_masks(subjects, test_subject)
         train_ds = RawEEGDataset(
             X[train_mask],
@@ -276,7 +313,14 @@ def train_fold_model(args, cfg, X, y, subjects, test_subject, logger):
             scaler.update()
             running_loss += float(loss.item()) * int(y_batch.numel())
 
-        val_acc, val_loss = evaluate(model, val_loader, device, amp=args.amp, label_smoothing=args.label_smoothing)
+        val_acc, val_loss = evaluate(
+            model,
+            val_loader,
+            device,
+            amp=args.amp,
+            label_smoothing=args.label_smoothing,
+            balanced_rank=args.balanced_rank,
+        )
         train_loss = running_loss / max(1, len(train_ds))
         if val_acc > best_acc:
             best_acc = val_acc
@@ -326,7 +370,7 @@ def train_fold_ensemble(args, cfg, X, y, subjects, test_subject, ensemble_seeds,
             val_targets = val_ds.y
 
     ensemble_proba = average_probabilities(member_probas)
-    preds = ensemble_proba.argmax(axis=1)
+    preds = balanced_rank_predictions(ensemble_proba) if args.balanced_rank else ensemble_proba.argmax(axis=1)
     ensemble_acc = float(np.mean(preds == val_targets))
     return ensemble_acc, member_summaries
 
@@ -334,7 +378,7 @@ def train_fold_ensemble(args, cfg, X, y, subjects, test_subject, ensemble_seeds,
 def train_final_model(args, cfg, X, y, logger):
     """Train one model on all labeled windows for final test prediction."""
     device = torch.device(args.device)
-    stats = None if args.norm_mode == "window" else compute_channel_stats(X)
+    stats = None if uses_window_normalization(args.norm_mode) else compute_channel_stats(X)
     train_ds = RawEEGDataset(
         X,
         y,
@@ -383,8 +427,8 @@ def predict_test_raw_proba(model, stats, test_dir, args, logger):
     probas = []
     with torch.no_grad():
         for user_id, trials in test_data.items():
-            if args.norm_mode == "window":
-                trials = standardize_by_window(trials)
+            if uses_window_normalization(args.norm_mode):
+                trials = standardize_by_norm_mode(trials, args.norm_mode)
             test_ds = RawEEGDataset(trials, np.zeros(len(trials), dtype=np.int64), stats)
             test_loader = make_data_loader(
                 test_ds,
@@ -393,7 +437,10 @@ def predict_test_raw_proba(model, stats, test_dir, args, logger):
                 num_workers=args.num_workers,
             )
             subject_proba = predict_proba_loader(model, test_loader, device, amp=args.amp)
-            subject_preds = subject_proba.argmax(axis=1).astype(int).tolist()
+            if args.balanced_rank:
+                subject_preds = balanced_rank_predictions(subject_proba).astype(int).tolist()
+            else:
+                subject_preds = subject_proba.argmax(axis=1).astype(int).tolist()
             probas.append(subject_proba)
             for trial_idx in range(1, len(subject_preds) + 1):
                 rows.append((user_id, trial_idx))
@@ -401,15 +448,27 @@ def predict_test_raw_proba(model, stats, test_dir, args, logger):
     return rows, np.concatenate(probas, axis=0) if probas else np.empty((0, 2), dtype=np.float32)
 
 
-def rows_to_predictions(rows, probas):
-    preds = probas.argmax(axis=1).astype(int).tolist()
+def rows_to_predictions(rows, probas, balanced_rank=False):
+    if balanced_rank:
+        preds = np.zeros(probas.shape[0], dtype=np.int64)
+        start = 0
+        while start < len(rows):
+            user_id = rows[start][0]
+            end = start + 1
+            while end < len(rows) and rows[end][0] == user_id:
+                end += 1
+            preds[start:end] = balanced_rank_predictions(probas[start:end])
+            start = end
+        preds = preds.tolist()
+    else:
+        preds = probas.argmax(axis=1).astype(int).tolist()
     return [(user_id, trial_idx, int(pred)) for (user_id, trial_idx), pred in zip(rows, preds)]
 
 
 def predict_test_raw(model, stats, test_dir, args, logger):
     """Predict all public test trials with a raw EEG model."""
     rows, probas = predict_test_raw_proba(model, stats, test_dir, args, logger)
-    predictions = rows_to_predictions(rows, probas)
+    predictions = rows_to_predictions(rows, probas, balanced_rank=args.balanced_rank)
     return predictions
 
 
@@ -446,8 +505,8 @@ def main():
         stride=resolve_signal_samples(cfg, args.train_stride_sec)[1],
         clip_sigma=cfg["signal"]["clip_sigma"],
     )
-    if args.norm_mode == "window":
-        X = standardize_by_window(X)
+    if uses_window_normalization(args.norm_mode):
+        X = standardize_by_norm_mode(X, args.norm_mode)
     logger.info(f"Raw windows: {X.shape}, subjects={len(iter_unique_subjects(subjects))}")
 
     if not args.skip_loso:
@@ -503,7 +562,11 @@ def main():
             test_probas.append(probas)
             model_states.append({"seed": member_seed, "state_dict": model.state_dict()})
 
-        predictions = rows_to_predictions(test_rows, average_probabilities(test_probas))
+        predictions = rows_to_predictions(
+            test_rows,
+            average_probabilities(test_probas),
+            balanced_rank=args.balanced_rank,
+        )
         save_submission(predictions, output_path)
         os.makedirs(os.path.dirname(model_output), exist_ok=True)
         torch.save(

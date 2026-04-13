@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from run_gpu_baselines import (
     average_probabilities,
+    balanced_rank_predictions,
     resolve_eval_seed,
     make_bd_conformer_kwargs,
     make_criterion,
@@ -40,6 +41,37 @@ class GPUBaselineHelperTests(unittest.TestCase):
     def test_average_probabilities_rejects_empty_input(self):
         with self.assertRaises(ValueError):
             average_probabilities([])
+
+    def test_balanced_rank_predictions_forces_half_positive(self):
+        probas = np.asarray(
+            [
+                [0.9, 0.1],
+                [0.2, 0.8],
+                [0.8, 0.2],
+                [0.3, 0.7],
+                [0.7, 0.3],
+                [0.4, 0.6],
+                [0.6, 0.4],
+                [0.1, 0.9],
+            ],
+            dtype=np.float32,
+        )
+
+        preds = balanced_rank_predictions(probas)
+
+        self.assertEqual(int(preds.sum()), 4)
+        np.testing.assert_array_equal(preds, np.asarray([0, 1, 0, 1, 0, 1, 0, 1]))
+
+    def test_balanced_rank_predictions_handles_window_count(self):
+        probas = np.column_stack([
+            np.linspace(1.0, 0.0, 72),
+            np.linspace(0.0, 1.0, 72),
+        ]).astype(np.float32)
+
+        preds = balanced_rank_predictions(probas)
+
+        self.assertEqual(preds.shape, (72,))
+        self.assertEqual(int(preds.sum()), 36)
 
     def test_make_criterion_uses_requested_label_smoothing(self):
         criterion = make_criterion(0.1)
