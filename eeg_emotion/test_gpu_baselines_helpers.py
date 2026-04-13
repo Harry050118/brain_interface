@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from run_gpu_baselines import (
     average_probabilities,
     balanced_rank_predictions,
+    checkpoint_channel_stats,
     resolve_eval_seed,
     make_bd_conformer_kwargs,
     make_criterion,
@@ -72,6 +73,12 @@ class GPUBaselineHelperTests(unittest.TestCase):
 
         self.assertEqual(preds.shape, (72,))
         self.assertEqual(int(preds.sum()), 36)
+
+    def test_checkpoint_channel_stats_allows_window_norm_without_stats(self):
+        mean, std = checkpoint_channel_stats(None)
+
+        self.assertIsNone(mean)
+        self.assertIsNone(std)
 
     def test_make_criterion_uses_requested_label_smoothing(self):
         criterion = make_criterion(0.1)

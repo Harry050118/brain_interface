@@ -128,6 +128,13 @@ def balanced_rank_predictions(probas):
     return preds
 
 
+def checkpoint_channel_stats(stats):
+    """Return checkpoint-safe channel stats for optional fold normalization."""
+    if stats is None:
+        return None, None
+    return stats.mean, stats.std
+
+
 def make_criterion(label_smoothing=0.0):
     """Create the classification criterion used by GPU baselines."""
     return nn.CrossEntropyLoss(label_smoothing=float(label_smoothing))
@@ -569,12 +576,13 @@ def main():
         )
         save_submission(predictions, output_path)
         os.makedirs(os.path.dirname(model_output), exist_ok=True)
+        channel_mean, channel_std = checkpoint_channel_stats(stats)
         torch.save(
             {
                 "model": model_states[0]["state_dict"] if len(model_states) == 1 else model_states,
                 "model_name": args.model,
-                "channel_mean": stats.mean,
-                "channel_std": stats.std,
+                "channel_mean": channel_mean,
+                "channel_std": channel_std,
                 "ensemble_seeds": ensemble_seeds,
                 "args": vars(args),
             },
