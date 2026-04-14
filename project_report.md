@@ -215,6 +215,8 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ## 附录：复现实验命令
 
+代码仓库 base URL：<https://github.com/Harry050118/brain_interface.git>
+
 窗口级 balanced-rank full LOSO：
 
 ```powershell
