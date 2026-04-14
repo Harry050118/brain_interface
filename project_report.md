@@ -179,11 +179,6 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ![图 5 Trial-level LOSO 混淆矩阵](eeg_emotion/outputs/figures/trial_level_confusion_matrix.png)
 
-### 5.5 公开测试集预测分布
-
-图 6 展示了最终提交文件中每名公开测试被试的预测类别分布。可以看到，balanced-rank 后处理使每名测试被试均包含 4 个中性预测和 4 个积极预测，这与数据说明文档中公开的实验设计一致。由于公开测试集真实标签不公开，因此不能计算公开测试集的混淆矩阵或真实准确率。
-
-![图 6 公开测试集预测分布](eeg_emotion/outputs/figures/submission_prediction_distribution.png)
 
 ## 6. 讨论
 
@@ -201,13 +196,11 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ## 参考文献
 
-[1] 赛题方. 数据集说明文档f.pdf. 脑机接口赛道赛题四：基于脑电数据的情绪识别算法.
+[1] Song, Y., Zheng, Q., Liu, B., & Gao, X. EEG Conformer: Convolutional Transformer for EEG Decoding and Visualization. IEEE Transactions on Neural Systems and Rehabilitation Engineering, 31, 710-719, 2023. DOI: 10.1109/TNSRE.2022.3230250.
 
-[2] Song, Y., Zheng, Q., Liu, B., & Gao, X. EEG Conformer: Convolutional Transformer for EEG Decoding and Visualization. IEEE Transactions on Neural Systems and Rehabilitation Engineering, 31, 710-719, 2023. DOI: 10.1109/TNSRE.2022.3230250.
+[2] Braindecode Documentation. EEGConformer model API. https://braindecode.org/stable/api.html
 
-[3] Braindecode Documentation. EEGConformer model API. https://braindecode.org/stable/api.html
-
-[4] Patel, P., Raghunandan, R., & Annavarapu, R. N. EEG-based human emotion recognition using entropy as a feature extraction measure. Brain Informatics, 8, 20, 2021.
+[3] Patel, P., Raghunandan, R., & Annavarapu, R. N. EEG-based human emotion recognition using entropy as a feature extraction measure. Brain Informatics, 8, 20, 2021.
 
 ## 附录：复现实验命令
 
