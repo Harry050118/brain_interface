@@ -148,7 +148,7 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ## 5. 实验结果与可视化
 
-需要说明的是，本节中的准确率、逐被试柱状图、准确率分布图和混淆矩阵均基于训练集 full LOSO 交叉验证结果，而不是公开测试集结果。公开测试集真实标签不公开，因此本文无法在本地计算公开测试集准确率、precision、recall、F1 或混淆矩阵。公开测试集仅用于无标签推理、生成最终 submission 文件，并检查提交格式与预测类别分布。
+本节中的准确率、逐被试柱状图、准确率分布图和混淆矩阵均基于训练集 full LOSO 交叉验证结果，而不是公开测试集结果。公开测试集真实标签不公开，因此本文无法在本地计算公开测试集准确率、precision、recall、F1 或混淆矩阵。公开测试集仅用于无标签推理、生成最终 submission 文件，并检查提交格式与预测类别分布。
 
 ### 5.1 方法准确率对比
 
@@ -180,14 +180,6 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 图 5 为训练集 trial-level full LOSO 验证集上的混淆矩阵。它不是公开测试集混淆矩阵。该矩阵的依据是：每名 LOSO 验证被试真实包含 4 个中性 trial 和 4 个积极 trial，且 trial-balanced-rank 后处理同样强制每名被试预测 4 个中性和 4 个积极，因此可以根据逐被试 trial-level accuracy 汇总得到整体 TP、TN、FP 和 FN。公开测试集真实标签不公开，因此不能计算公开测试集混淆矩阵。
 
 ![图 5 Trial-level LOSO 混淆矩阵](eeg_emotion/outputs/figures/trial_level_confusion_matrix.png)
-
-
-### 5.5 公开测试集预测分布
-
-图 6 展示了最终提交文件中每名公开测试被试的预测类别分布。该图根据 `submission_bd_conformer_trial_balanced_rank.xlsx` 生成，只反映模型对公开测试集的预测标签分布，不反映预测正确性。可以看到，balanced-rank 后处理使每名测试被试均包含 4 个中性预测和 4 个积极预测，这与数据说明文档中公开的实验设计一致。由于公开测试集真实标签不公开，因此不能计算公开测试集的混淆矩阵或真实准确率。
-
-![图 6 公开测试集预测分布](eeg_emotion/outputs/figures/submission_prediction_distribution.png)
-
 
 ## 6. 讨论
 
