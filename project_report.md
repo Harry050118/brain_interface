@@ -148,6 +148,8 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ## 5. 实验结果与可视化
 
+需要说明的是，本节中的准确率、逐被试柱状图、准确率分布图和混淆矩阵均基于训练集 full LOSO 交叉验证结果，而不是公开测试集结果。公开测试集真实标签不公开，因此本文无法在本地计算公开测试集准确率、precision、recall、F1 或混淆矩阵。公开测试集仅用于无标签推理、生成最终 submission 文件，并检查提交格式与预测类别分布。
+
 ### 5.1 方法准确率对比
 
 图 2 展示了不同方法或策略下的 full LOSO 准确率。传统 SVM/早期基线约为 65.83%；BD-Conformer 结合窗口标准化后达到 71.71%；进一步加入窗口级 balanced-rank 后达到 73.80%。在 trial-level 评估中，对同一训练 trial 的多窗口概率进行平均并使用 trial-balanced-rank 后处理，full LOSO 达到 84.17%。
@@ -163,7 +165,7 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ### 5.2 被试级 LOSO 结果
 
-图 3 展示了 60 名被试在 trial-level full LOSO 下的逐被试准确率。可以看到，虽然平均准确率达到 84.17%，但不同被试之间仍存在明显差异。例如，部分被试可达到 100%，但也存在 50% 或更低的被试。这说明跨被试 EEG 情绪识别仍受到个体差异影响。
+图 3 展示了 60 名训练被试在 trial-level full LOSO 下的逐被试准确率。该图来自 full LOSO 日志中每一折的 `best_acc` 记录：每次留出一个训练被试作为验证集，其余 59 名被试用于训练。可以看到，虽然平均准确率达到 84.17%，但不同被试之间仍存在明显差异。例如，部分被试可达到 100%，但也存在 50% 或更低的被试。这说明跨被试 EEG 情绪识别仍受到个体差异影响。
 
 ![图 3 逐被试 full LOSO 准确率](eeg_emotion/outputs/figures/subject_loso_accuracy.png)
 
@@ -175,9 +177,16 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ### 5.4 Trial-level LOSO 混淆矩阵
 
-图 5 为 trial-level full LOSO 验证集上的混淆矩阵。由于每名验证被试真实包含 4 个中性 trial 和 4 个积极 trial，且 trial-balanced-rank 后处理同样强制每名被试预测 4 个中性和 4 个积极，因此可以根据逐被试 trial-level accuracy 汇总得到整体混淆矩阵。该矩阵来自训练集 LOSO 验证，不代表公开测试集混淆矩阵。
+图 5 为训练集 trial-level full LOSO 验证集上的混淆矩阵。它不是公开测试集混淆矩阵。该矩阵的依据是：每名 LOSO 验证被试真实包含 4 个中性 trial 和 4 个积极 trial，且 trial-balanced-rank 后处理同样强制每名被试预测 4 个中性和 4 个积极，因此可以根据逐被试 trial-level accuracy 汇总得到整体 TP、TN、FP 和 FN。公开测试集真实标签不公开，因此不能计算公开测试集混淆矩阵。
 
 ![图 5 Trial-level LOSO 混淆矩阵](eeg_emotion/outputs/figures/trial_level_confusion_matrix.png)
+
+
+### 5.5 公开测试集预测分布
+
+图 6 展示了最终提交文件中每名公开测试被试的预测类别分布。该图根据 `submission_bd_conformer_trial_balanced_rank.xlsx` 生成，只反映模型对公开测试集的预测标签分布，不反映预测正确性。可以看到，balanced-rank 后处理使每名测试被试均包含 4 个中性预测和 4 个积极预测，这与数据说明文档中公开的实验设计一致。由于公开测试集真实标签不公开，因此不能计算公开测试集的混淆矩阵或真实准确率。
+
+![图 6 公开测试集预测分布](eeg_emotion/outputs/figures/submission_prediction_distribution.png)
 
 
 ## 6. 讨论
@@ -187,6 +196,8 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 关于 trial-level 结果，需要谨慎解释。训练集中每个 trial 约为 50 秒，可切分为 9 个 10 秒窗口，并通过概率平均降低单窗口噪声；而公开测试集中每个 trial 仅为 10 秒，无法进行相同的多窗口聚合。因此，trial-level full LOSO 的 84.17% 更适合作为训练集 trial 结构下的验证结果，而不能直接等价为公开测试集或私有测试集准确率。为保证严谨性，本文同时报告窗口级 full LOSO 73.80% 作为更保守的泛化参考。
 
 从规范性角度看，本文没有使用公开测试集标签，也没有根据线上反馈反推标签。balanced-rank 仅使用数据说明文档中公开的“每名被试 4 个积极 trial 和 4 个中性 trial”这一实验设计先验，因此属于基于公开先验的后处理策略，而不是标签泄露。不过，在正式汇报时应明确说明该假设来源，并区分窗口级结果与 trial-level 聚合结果。
+
+公开测试集在本文中的作用是无标签推理和提交文件生成。具体流程为：使用带标签训练集训练最终模型；读取公开测试集的 80 个 trial；输出每个 trial 的积极类概率；对同一测试被试的 8 个 trial 进行 balanced-rank 后处理；最后生成 Excel 格式的 submission 文件。由于缺少公开测试集真实标签，本文不在本地报告公开测试集监督指标，所有监督评估指标均来自训练集 LOSO 交叉验证。
 
 后续可改进方向包括：设计与公开测试集 10 秒 trial 更一致的验证策略；保存每折逐 trial 概率以计算更完整的 ROC、AUC 和 calibration 曲线；研究更稳健的被试标准化、域泛化或集成方法；在不泄露测试标签的前提下探索更可靠的跨被试适应策略。
 
