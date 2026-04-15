@@ -61,6 +61,24 @@ def standardize_by_window(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 
 本文使用 Braindecode 中的 EEGConformer。该模型结合卷积模块与自注意力模块：卷积用于提取局部时空模式，自注意力用于建模较长程依赖。模型输入为原始 EEG 窗口，输出为两类 logits。
 
+当前项目中 BD-Conformer 的模型构建代码如下：
+
+```python
+from braindecode.models import EEGConformer
+
+def make_bd_conformer_kwargs(args, cfg, window_size, signature_parameters=None):
+    params = set(signature_parameters or inspect.signature(EEGConformer).parameters)
+    kwargs = {
+        "n_chans": cfg["signal"]["n_channels"],
+        "n_times": window_size,
+        "sfreq": cfg["signal"]["sample_rate"],
+        "n_outputs": 2,
+        "drop_prob": args.dropout,
+        "att_drop_prob": args.dropout,
+    }
+    
+```
+
 ### 3.4 Balanced-rank 后处理
 
 数据说明文档明确每名被试包含 4 个中性 trial 和 4 个积极 trial。本文利用这一公开先验，对同一被试的 8 个 trial 按积极类概率排序，选择概率最高的 4 个作为积极类，其余作为中性类。该步骤不使用测试集真实标签。
