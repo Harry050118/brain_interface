@@ -2,52 +2,29 @@
 
 ## 摘要
 
-本文研究跨被试 EEG 情绪二分类任务，即根据 30 通道脑电信号识别中性情绪与积极情绪。该任务的主要挑战在于 EEG 信号噪声较高、被试间差异显著、训练样本规模有限。本文采用 BD-Conformer 对原始 EEG 窗口进行端到端建模，并结合窗口级标准化和基于公开实验设计的 balanced-rank 后处理。full LOSO 验证结果显示，窗口级 balanced-rank 达到 73.80%；进一步在训练集 trial-level 评估中聚合同一 trial 的多个窗口概率后，准确率达到 84.17%。由于公开测试集真实标签不公开，本文所有监督指标均来自训练集 full LOSO，公开测试集仅用于无标签推理和 submission 生成。
+本文面向 30 通道 EEG 跨被试情绪二分类任务，区分中性与积极情绪。方法采用 BD-Conformer 建模原始 EEG 窗口，并结合 window normalization 与 balanced-rank 后处理。训练集 full LOSO 中，窗口级准确率为 73.80%，trial-level 聚合准确率为 84.17%。公开测试集仅用于生成 submission。
 
 ## 1. 引言
 
-脑电情绪识别通过分析 EEG 信号判断被试情绪状态。相比表情、语音等外显信号，EEG 更接近神经活动本身，但也具有低信噪比、强个体差异和小样本等特点，跨被试识别尤其困难。
-
-传统方法通常提取 DE 等手工特征并使用 SVM 分类，解释性较强，但难以充分建模 EEG 的空间-时间关系。本文最终采用 EEG-Conformer 类模型，直接输入原始 EEG 窗口，通过卷积和自注意力提取时空特征。同时，赛题数据说明公开了每名被试包含 4 段中性视频和 4 段积极视频，因此本文加入 balanced-rank 后处理，使同一被试的预测类别比例符合公开实验设计。
-
-主要工作包括：
-
-1. 使用 BD-Conformer 对原始 30 通道 EEG 进行跨被试情绪识别。
-2. 使用 window normalization 缓解被试间幅值差异。
-3. 使用 balanced-rank 和 trial-level balanced-rank 后处理提高预测稳定性。
-4. 通过 full LOSO 验证模型，并明确区分窗口级结果与 trial-level 聚合结果。
+EEG 能反映神经活动，但跨被试识别受低信噪比、个体差异和小样本限制。传统 DE+SVM 难以描述时空依赖。本文使用 EEG-Conformer 学习原始信号，并利用公开 4/4 trial 类别比例约束输出。
 
 ## 2. 数据集
 
-训练集包含 60 名被试，其中健康被试 40 名、抑郁症被试 20 名。每名被试观看 8 段视频，包括 4 段中性视频和 4 段积极视频。训练文件中 `EEG_data_neu` 对应标签 0，`EEG_data_pos` 对应标签 1；每类数据为 `30 x 50000`，即 4 段约 50 秒 EEG。采样率为 250 Hz。
-
-公开测试集包含 10 名被试，每名被试同样包含 8 个 trial，其中 4 个中性、4 个积极，但真实标签不公开。每个测试文件为 `30 x 20000`，即 8 个 10 秒 trial。
+训练集包含 60 名被试，其中健康 40 名、抑郁症 20 名。每名被试含 4 段中性视频和 4 段积极视频，标签为 0/1。公开测试集含 10 名被试，真实标签隐藏。
 
 ## 3. 方法
 
 ### 3.1 方法流程
 
-整体流程如图 1 所示。原始 EEG 首先被切分为 10 秒窗口并进行窗口级标准化；随后送入 BD-Conformer 输出类别概率；最后根据每名被试 4 个中性 trial 和 4 个积极 trial 的公开先验进行 balanced-rank 后处理，生成最终预测标签。
+整体流程如图 1。原始 EEG 切分为 10 秒窗口并标准化，随后输入 BD-Conformer 输出类别概率，最后按同一被试 4/4 类别比例执行 balanced-rank。
 
 ![图 1 方法整体流程](eeg_emotion/outputs/figures/method_pipeline.png)
 
-主要功能包括：
-
-1. **信号预处理**：将原始 EEG 转换为固定长度窗口，并进行通道级标准化。
-2. **时空特征学习**：使用 BD-Conformer 学习 EEG 空间-时间特征。
-3. **先验约束后处理**：使用 balanced-rank 保证同一被试预测结果符合 4/4 类别比例。
-
-主要创新点包括：
-
-1. 将 EEG-Conformer 与窗口级标准化结合，用于小样本跨被试 EEG 分类。
-2. 基于赛题公开类别比例设计 balanced-rank 后处理。
-3. 在训练集验证中引入 trial-level 概率聚合，降低单窗口预测噪声。
+核心思路是：使用 raw EEG；用 Conformer 学习时空依赖；用公开类别比例约束预测分布，且不涉及测试集真实标签。
 
 ### 3.2 数据预处理
 
-训练集中每个 50 秒 trial 被切分为 10 秒窗口，窗口长度为 2500 个采样点，stride 为 1250 个采样点。因此，每个训练 trial 可得到 9 个重叠窗口，窗口输入维度为 `30 x 2500`。
-
-为降低不同被试之间 EEG 幅值差异，本文采用 window normalization：对每个窗口内每个通道沿时间维分别计算均值和标准差，再进行标准化。
+训练 trial 约 50 秒，切为 10 秒窗口，长度 2500，stride 1250，每个 trial 得到 9 个窗口。window normalization 按窗口和通道标准化。
 
 ```python
 def standardize_by_window(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
@@ -59,7 +36,7 @@ def standardize_by_window(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 
 ### 3.3 BD-Conformer 模型
 
-本文使用 Braindecode 中的 EEGConformer。该模型结合卷积模块与自注意力模块：卷积用于提取局部时空模式，自注意力用于建模较长程依赖。模型输入为原始 EEG 窗口，输出为两类 logits。
+本文使用 Braindecode 的 EEGConformer。模型输入为 `30 x 2500` EEG 窗口，输出两类 logits；卷积提取局部模式，自注意力建模依赖。
 
 当前项目中 BD-Conformer 的模型构建代码如下：
 
@@ -76,12 +53,20 @@ def make_bd_conformer_kwargs(args, cfg, window_size, signature_parameters=None):
         "drop_prob": args.dropout,
         "att_drop_prob": args.dropout,
     }
-    
+    if "num_layers" in params:
+        kwargs["num_layers"] = args.num_layers
+    else:
+        kwargs["att_depth"] = args.num_layers
+    if "num_heads" in params:
+        kwargs["num_heads"] = args.num_heads
+    else:
+        kwargs["att_heads"] = args.num_heads
+    return kwargs
 ```
 
 ### 3.4 Balanced-rank 后处理
 
-数据说明文档明确每名被试包含 4 个中性 trial 和 4 个积极 trial。本文利用这一公开先验，对同一被试的 8 个 trial 按积极类概率排序，选择概率最高的 4 个作为积极类，其余作为中性类。该步骤不使用测试集真实标签。
+balanced-rank 在每名被试的 8 个 trial 内按积极类概率排序，取最高 4 个为积极类，其余为中性类。
 
 ```python
 def balanced_rank_predictions(probas):
@@ -95,7 +80,7 @@ def balanced_rank_predictions(probas):
 
 ### 3.5 Trial-level balanced-rank
 
-训练集中的一个 trial 约 50 秒，可切分为 9 个 10 秒窗口。trial-level balanced-rank 先对同一 trial 的窗口概率取平均，再对 8 个 trial 做 balanced-rank。该策略用于训练集 LOSO 的 trial-level 验证，能够减少单窗口波动。
+trial-level 方法先平均同一 trial 的 9 个窗口概率，再执行 balanced-rank，主要用于训练集验证。
 
 ```python
 def trial_balanced_rank_predictions(probas, windows_per_trial):
@@ -104,11 +89,9 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
     return np.repeat(trial_preds, windows_per_trial)
 ```
 
-需要注意，公开测试集中每个 trial 仅提供 10 秒 EEG，不能像训练集一样进行 9 窗口聚合。因此 trial-level 结果更适合作为训练集 trial 结构下的验证指标，而不是公开测试集准确率。
-
 ## 4. 实验设置
 
-本文采用 full LOSO 交叉验证。每一折留出 1 名训练被试作为验证集，其余 59 名被试用于训练，遍历全部 60 名训练被试。
+本文采用 full LOSO：每折留出 1 名被试验证，其余 59 名训练。
 
 | 参数 | 设置 |
 |---|---|
@@ -130,42 +113,38 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 Full LOSO Accuracy = (1 / N) * Σ_i Accuracy_i
 ```
 
-其中，`N=60` 表示训练集中的 60 名被试，`Accuracy_i` 表示第 `i` 名被试作为验证集时的准确率。窗口级评估中，验证样本为该被试的 72 个 EEG 窗口；trial-level 评估中，验证样本为该被试的 8 个视频 trial。
+其中 `N=60`。窗口级样本为 72 个 EEG 窗口，trial-level 样本为 8 个 trial。
 
 ## 5. 实验结果与可视化
 
-本节中的准确率、逐被试柱状图、准确率分布图和混淆矩阵均来自训练集 full LOSO 交叉验证。公开测试集真实标签不公开，因此不能在本地计算公开测试集准确率或混淆矩阵；公开测试集仅用于无标签推理和 submission 生成。
+结果均来自训练集 full LOSO。公开测试集无真实标签，不能计算准确率或混淆矩阵。
 
 ### 5.1 被试级 LOSO 结果
 
-图 2 展示 60 名训练被试的 trial-level LOSO 准确率。该图由 full LOSO 日志中的每折 `best_acc` 解析得到。可以看到，模型在部分被试上达到 100%，但也有少数被试低于 50%，说明跨被试个体差异仍然明显。
+图 2 展示 60 名训练被试的 trial-level LOSO 准确率。部分被试达到 100%，少数低于 50%，说明个体差异明显。
 
 ![图 2 逐被试 full LOSO 准确率](eeg_emotion/outputs/figures/subject_loso_accuracy.png)
 
 ### 5.2 准确率分布
 
-图 3 展示 trial-level LOSO 准确率分布。该实验平均准确率为 84.17%，标准差为 16.44%。标准差较大说明模型仍存在被试依赖性，后续需要更稳健的跨被试泛化方法。
+图 3 展示准确率分布。trial-level 平均准确率为 84.17%，标准差为 16.44%，说明稳定性仍有限。
 
 ![图 3 被试准确率分布](eeg_emotion/outputs/figures/accuracy_distribution.png)
 
 ### 5.3 Trial-level LOSO 混淆矩阵
 
-图 4 为训练集 trial-level full LOSO 验证集上的混淆矩阵，不是公开测试集混淆矩阵。由于每名验证被试真实包含 4 个中性 trial 和 4 个积极 trial，且后处理同样预测 4 个中性和 4 个积极，因此可由逐被试 trial-level accuracy 汇总得到整体 TP、TN、FP 和 FN。
+图 4 为训练集 trial-level full LOSO 混淆矩阵，不是公开测试集结果。
 
 ![图 4 Trial-level LOSO 混淆矩阵](eeg_emotion/outputs/figures/trial_level_confusion_matrix.png)
 
-
 ## 6. 讨论
 
-实验结果表明，BD-Conformer 能够比传统手工特征方法更好地利用原始 EEG 的时空信息。window normalization 对跨被试任务较重要，可以缓解不同被试信号尺度不一致的问题。balanced-rank 利用公开类别比例先验，使同一被试内预测类别数与实验设计一致，从而提升预测稳定性。
-
-从规范性角度看，本文没有使用公开测试集标签，也没有根据线上反馈反推标签。公开测试集仅用于最终无标签推理：读取 80 个 trial，输出概率，按每名被试 4/4 先验进行 balanced-rank，生成 Excel submission 文件。所有监督评估指标均来自训练集 LOSO。
+BD-Conformer 利用原始 EEG 时空结构，window normalization 缓解尺度差异，balanced-rank 利用公开比例提升稳定性。本文未使用测试集标签；测试集只用于无标签推理和 Excel submission。
 
 ## 7. 结论
 
-本文提出了 BD-Conformer + window normalization + balanced-rank 的跨被试 EEG 情绪识别方法。窗口级 full LOSO 达到 73.80%，trial-level 聚合评估达到 84.17%。结果表明，深度时空模型结合公开实验先验能够提升跨被试 EEG 情绪识别性能。考虑到公开测试集每个 trial 仅有 10 秒数据，最终结果解释应同时参考窗口级和 trial-level 两种指标。
-
+本文提出 BD-Conformer + window normalization + balanced-rank 方法。窗口级 full LOSO 为 73.80%，trial-level 聚合为 84.17%，说明深度时空模型结合公开先验可提升 EEG 情绪识别效果。
 
 ## 代码仓库
 
- base URL：<https://github.com/Harry050118/brain_interface.git>
+base URL：<https://github.com/Harry050118/brain_interface.git>
