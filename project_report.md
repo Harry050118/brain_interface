@@ -153,11 +153,6 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 
 ![图 5 Trial-level LOSO 混淆矩阵](eeg_emotion/outputs/figures/trial_level_confusion_matrix.png)
 
-### 5.5 公开测试集预测分布
-
-图 6 来自最终 submission 文件，仅展示公开测试集预测标签分布，不代表预测正确性。balanced-rank 后处理使每名测试被试均包含 4 个中性预测和 4 个积极预测，与数据说明文档中的实验设计一致。
-
-![图 6 公开测试集预测分布](eeg_emotion/outputs/figures/submission_prediction_distribution.png)
 
 ## 6. 讨论
 
@@ -166,8 +161,6 @@ def trial_balanced_rank_predictions(probas, windows_per_trial):
 trial-level 结果需要谨慎解释。训练集 trial 约为 50 秒，可切分为多个 10 秒窗口并进行概率平均；公开测试集每个 trial 只有 10 秒，无法进行相同聚合。因此，84.17% 反映的是训练集 trial-level LOSO 验证能力，而 73.80% 是更保守的窗口级参考。
 
 从规范性角度看，本文没有使用公开测试集标签，也没有根据线上反馈反推标签。公开测试集仅用于最终无标签推理：读取 80 个 trial，输出概率，按每名被试 4/4 先验进行 balanced-rank，生成 Excel submission 文件。所有监督评估指标均来自训练集 LOSO。
-
-后续工作可从三个方向改进：设计与测试集 10 秒 trial 更一致的验证方式；保存逐 trial 概率以计算 ROC、AUC 和校准曲线；探索更稳定的被试标准化、域泛化或模型集成方法。
 
 ## 7. 结论
 
